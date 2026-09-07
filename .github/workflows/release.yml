@@ -75,7 +75,7 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
-      - uses: changesets/action@v1
+      - uses: changesets/action@v2
         with:
           version: pnpm version-packages
           commit: 'chore: version packages'
@@ -106,7 +106,7 @@ jobs:
 
       # `pnpm release` builds and re-runs the export checks on the packed
       # output right before `changeset publish`.
-      - uses: changesets/action@v1
+      - uses: changesets/action@v2
         with:
           publish: pnpm release
         env:
