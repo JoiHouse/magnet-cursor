@@ -114,6 +114,8 @@ CONTRIBUTING 的布局表、lint 描述、PR 前清单，PR 模板的检查项�
 
 **踩坑**：一次 `git add a b c d` 里有一个路径已被 `git rm` 暂存，git 对整条命令报 `pathspec did not match` 且**一个文件都不加**，随后的 `git commit` 只提交了之前暂存的删除。提交后要看 `git show --stat HEAD` 核对文件数，而不是只看 push 成功。
 
+**踩坑**：首次推送后 CI 的 typecheck 报 `Property 'at' does not exist on type 'HTMLElement[]'`，本地却一直是绿的。原因是本地 tsc 自动纳入了根目录的 `@types/node`，它的 `compatibility/indexable.d.ts` 给 `Array` 补了 ES2022 的 `at()`，CI 没纳入，于是 `lib: ES2020` 的约束只在 CI 生效。处置：测试改用下标；`tsconfig.base.json` 加 `"types": []` 关掉自动纳入，本地从此与 CI 同样严格。库代码的 `lib` 保持 ES2020 不升，否则 `at()` 这类 Safari 15.4 才有的 API 会悄悄进产物。
+
 ### P2.6 验收与进度
 
 - [x] 连续五次构建 `.d.cts` 三包齐全
