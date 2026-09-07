@@ -1,5 +1,14 @@
 # @joihouse/magnet-cursor-vue
 
+## 0.1.1
+
+### Patch Changes
+
+- [#9](https://github.com/JoiHouse/magnet-cursor/pull/9) [`f572e42`](https://github.com/JoiHouse/magnet-cursor/commit/f572e420e12c72dea1cd78bbbe9f68e438a2576b) Thanks [@JoiHouse](https://github.com/JoiHouse)! - Publish through npm trusted publishing (OIDC) instead of a long-lived token. No runtime changes; the
+  tarballs carry the same code as 0.1.0 with provenance attached by the trusted publisher.
+- Updated dependencies [[`f572e42`](https://github.com/JoiHouse/magnet-cursor/commit/f572e420e12c72dea1cd78bbbe9f68e438a2576b)]:
+  - @joihouse/magnet-cursor-core@0.1.1
+
 ## 0.1.0
 
 ### Minor Changes
