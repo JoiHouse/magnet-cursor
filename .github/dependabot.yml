@@ -8,9 +8,12 @@ updates:
     schedule:
       interval: weekly
     groups:
-      # One PR for all devDependencies rather than one each.
+      # One PR for routine devDependency bumps rather than one each. Majors
+      # stay out of the group so each arrives as its own PR: five majors in one
+      # PR failed typecheck with no way to tell which one broke it.
       dev-dependencies:
         dependency-type: development
+        update-types: ['minor', 'patch']
     ignore:
       # The peer ranges are deliberately wide. A major bump of a framework is
       # an API decision, not a dependency update.
