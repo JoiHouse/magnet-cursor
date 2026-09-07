@@ -26,7 +26,7 @@ jobs:
       # environment's approval gate with nothing to publish.
       unpublished: ${{ steps.registry.outputs.unpublished }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - uses: pnpm/action-setup@v6
 
@@ -79,7 +79,7 @@ jobs:
     if: needs.checks.outputs.pending == 'true'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - uses: pnpm/action-setup@v6
 
@@ -115,7 +115,7 @@ jobs:
     runs-on: ubuntu-latest
     environment: npm
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - uses: pnpm/action-setup@v6
 
