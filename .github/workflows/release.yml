@@ -19,8 +19,12 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       # Whether unreleased changesets exist. With some pending, the run opens
-      # or updates the version PR; with none, it publishes what that PR bumped.
+      # or updates the version PR; with none, the run may publish.
       pending: ${{ steps.changesets.outputs.pending }}
+      # Whether the version in the tree is still missing from npm. Without this
+      # every push to `main` would start the publish job and park it on the
+      # environment's approval gate with nothing to publish.
+      unpublished: ${{ steps.registry.outputs.unpublished }}
     steps:
       - uses: actions/checkout@v4
 
@@ -55,6 +59,17 @@ jobs:
             echo "pending=true" >> "$GITHUB_OUTPUT"
           else
             echo "pending=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      # The three packages version together, so one lookup stands for all.
+      - name: Compare the tree's version with npm
+        id: registry
+        run: |
+          version=$(node -p "require('./packages/core/package.json').version")
+          if npm view "@joihouse/magnet-cursor-core@$version" version >/dev/null 2>&1; then
+            echo "unpublished=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "unpublished=true" >> "$GITHUB_OUTPUT"
           fi
 
   # Opens (or updates) the "Version Packages" PR. Needs no secret beyond the
@@ -96,7 +111,7 @@ jobs:
   # attached automatically for a public repository.
   publish:
     needs: checks
-    if: needs.checks.outputs.pending == 'false'
+    if: needs.checks.outputs.pending == 'false' && needs.checks.outputs.unpublished == 'true'
     runs-on: ubuntu-latest
     environment: npm
     steps:
