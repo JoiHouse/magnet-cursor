@@ -103,6 +103,8 @@ changelog 生成器换成 `@changesets/changelog-github`，`.changeset/config.js
 
 **踩坑**：dependabot 上线当天就开了 devDependencies 组 PR，把 TypeScript 提到 7.0.2，CI 在 `pnpm lint` 报 `typescript-eslint does not support TS 7.0`。typescript-eslint 的 peer 是 `<6.1.0`，tsup 的 DTS 构建同样绑 TS 大版本。处置是 dependabot 对 `typescript` 加 `update-types: ['version-update:semver-major']` 忽略，大版本跟 typescript-eslint 一起手动升。看到 CI 红先确认是哪个分支、哪个触发源，main 的 lockfile 锁的是 5.9.3。
 
+**踩坑**：changesets/action v2 要求 **@changesets/cli v3**，与 cli 2.x 搭配时直接报 "This version of the Changesets action is designed to work with Changesets CLI v3"。它的变更说明里那句"移除对旧 Changesets 的兼容"指的就是这件事，不要按字面理解成 v1。cli v3 的相关变化：`changeset version` 在没有待发 changeset 时退出码变为 1（本仓库的 `version` job 只在有待发时运行，不受影响）、要求 Node ≥ 22.11、config 的 `$schema` 指向 `@changesets/config@4.0.0`。`@changesets/changelog-github` 1.0.1 与 cli 3 共用 `@changesets/types` v7，无需升级。
+
 ### P2.4 工具链去私有化
 
 - `eslint.config.js`：删除 react-hooks 插件与 `site/**` 专属块；`site/**`、`marketing/**`、`development/**` 进 ignores，本地 `eslint .` 不会碰它们，公开仓库也不引用不存在的目录。
