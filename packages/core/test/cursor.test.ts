@@ -504,7 +504,7 @@ describe('createMagnetCursor', () => {
       // the element, so the last drop's own transform carries the thinnest
       // radius the filter has to keep.
       const drops = [...el.querySelectorAll<HTMLElement>('.magnet-cursor__drop')]
-      const last = drops.at(-1)!
+      const last = drops[drops.length - 1]!
       const lastScale = Number(/scale\(([\d.]+)\)/.exec(last.style.transform)![1])
 
       const headRadius = (size * scale) / 2
