@@ -1,0 +1,119 @@
+name: Release
+
+on:
+  push:
+    branches: [main]
+
+concurrency: ${{ github.workflow }}-${{ github.ref }}
+
+permissions:
+  contents: write
+  pull-requests: write
+  id-token: write
+
+jobs:
+  # The CI workflow is not a gate on this one — a push to `main` runs both
+  # side by side — so the same checks run here before anything is versioned
+  # or published.
+  verify:
+    runs-on: ubuntu-latest
+    outputs:
+      # Whether unreleased changesets exist. With some pending, the run opens
+      # or updates the version PR; with none, it publishes what that PR bumped.
+      pending: ${{ steps.changesets.outputs.pending }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Lint and format check
+        run: pnpm lint
+
+      - name: Build packages
+        run: pnpm build
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Unit tests
+        run: pnpm test
+
+      - name: Package export checks
+        run: pnpm check:exports
+
+      - name: Look for pending changesets
+        id: changesets
+        run: |
+          if ls .changeset/*.md 2>/dev/null | grep -qv README.md; then
+            echo "pending=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "pending=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  # Opens (or updates) the "Version Packages" PR. Needs no secret beyond the
+  # workflow token, so it runs unattended on every push.
+  version:
+    needs: verify
+    if: needs.verify.outputs.pending == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - uses: changesets/action@v1
+        with:
+          version: pnpm version-packages
+          commit: 'chore: version packages'
+          title: 'chore: version packages'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # Publishes whatever the merged version PR bumped. The `npm` environment
+  # holds NPM_TOKEN and a required reviewer, so this job waits for a human to
+  # approve the deployment before the secret is even available to it.
+  publish:
+    needs: verify
+    if: needs.verify.outputs.pending == 'false'
+    runs-on: ubuntu-latest
+    environment: npm
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          registry-url: https://registry.npmjs.org
+
+      - run: pnpm install --frozen-lockfile
+
+      # `pnpm release` builds and re-runs the export checks on the packed
+      # output right before `changeset publish`.
+      - uses: changesets/action@v1
+        with:
+          publish: pnpm release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          # Attaches a signed provenance statement to every publish, linking
+          # the tarball on npm to this workflow run and commit. Needs the
+          # `id-token: write` permission above; npm refuses the publish if the
+          # attestation cannot be made rather than silently dropping it.
+          NPM_CONFIG_PROVENANCE: 'true'

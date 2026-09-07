@@ -1,0 +1,27 @@
+# Weekly dependency PRs. CI runs lint, build, typecheck, tests and the package
+# export checks on each one, so a green PR is safe to merge; the release
+# workflow only runs on pushes to `main`, so nothing here can publish.
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      # One PR for all devDependencies rather than one each.
+      dev-dependencies:
+        dependency-type: development
+    ignore:
+      # The peer ranges are deliberately wide. A major bump of a framework is
+      # an API decision, not a dependency update.
+      - dependency-name: vue
+      - dependency-name: react
+      - dependency-name: react-dom
+      # typescript-eslint and tsup's declaration build both pin a TypeScript
+      # major; a TypeScript major bump has to land together with theirs.
+      - dependency-name: typescript
+        update-types: ['version-update:semver-major']
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly

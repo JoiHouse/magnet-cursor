@@ -1,0 +1,41 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Lint and format check
+        run: pnpm lint
+
+      - name: Build packages
+        run: pnpm build
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Unit tests
+        run: pnpm test
+
+      # Runs after the build because both tools pack the real `dist`. publint
+      # checks the package manifest against what was actually published;
+      # are-the-types-wrong resolves every entry point the way a consumer's
+      # TypeScript would, which is how the CJS entry shipping ESM type
+      # declarations was found in the first place.
+      - name: Package export checks
+        run: pnpm check:exports

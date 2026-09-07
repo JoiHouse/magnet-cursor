@@ -1,0 +1,10 @@
+# Changes to these paths need the maintainer's review before merging. Together
+# with branch protection this is what stands between "can push" and "can publish":
+# the release workflow, the changeset config and the package manifests are the
+# three places a commit could alter what goes to npm.
+/.github/workflows/   @JoiHouse
+/.github/CODEOWNERS   @JoiHouse
+/.changeset/          @JoiHouse
+/packages/*/package.json  @JoiHouse
+/package.json         @JoiHouse
+/pnpm-lock.yaml       @JoiHouse

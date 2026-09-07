@@ -1,0 +1,363 @@
+/**
+ * @joihouse/magnet-cursor-core — default cursor styling.
+ *
+ * Every value is driven by a CSS custom property that `createMagnetCursor`
+ * writes onto the element, so options set in JS and overrides written in CSS
+ * stay in sync. Override any of them yourself to restyle the cursor.
+ *
+ * The root is a bare positioner carrying the pointer position. The visual lives
+ * on `__head`, which carries the liquid deformation, so a gooey trail can sit
+ * beside the head inside the same filtered box.
+ */
+
+.magnet-cursor {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: var(--mc-z-index, 9999);
+  pointer-events: none;
+  will-change: transform;
+
+  /*
+   * On the root rather than on the visual, so the head and the trail drops
+   * blend with the page as one shape instead of blending with each other. Any
+   * ancestor carrying `isolation: isolate` would confine this to itself, but the
+   * cursor is mounted on `body`, so its backdrop is the whole page.
+   */
+  mix-blend-mode: var(--mc-blend, normal);
+}
+
+/*
+ * The liquid body. A plain point at the origin until the trail gives it a box,
+ * so the head and drops position against the same origin either way.
+ */
+.magnet-cursor__body {
+  position: absolute;
+  top: 0;
+  left: 0;
+}
+
+.magnet-cursor__head,
+.magnet-cursor__drop {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  will-change: transform;
+}
+
+/*
+ * Inside the goo filter, nothing may ask for its own compositing layer.
+ *
+ * Safari applies the body's filter per layer rather than to the flattened
+ * group, so a promoted drop is blurred and thresholded on its own and never
+ * fuses with its neighbours: the trail renders as a row of separate discs
+ * instead of one liquid body. Measured in Safari — `will-change: transform` on
+ * its own is enough, and so is a `translate3d` on its own, which is why the
+ * engine writes the drops with a 2D `translate`. See the Safari notes in
+ * development/safari-compat.md (maintainer notes, not published).
+ *
+ * Nothing is lost. The filter forces a CPU rasterisation of the whole box every
+ * frame anyway, so the layer these asked for was never a win — it only cost
+ * memory on the one path that could not use it. Without a trail there is no
+ * filter, and the hint stays.
+ */
+.magnet-cursor--trail .magnet-cursor__head,
+.magnet-cursor--trail .magnet-cursor__drop {
+  will-change: auto;
+}
+
+.magnet-cursor__head::after,
+.magnet-cursor__drop::after {
+  content: '';
+  display: block;
+  position: absolute;
+  top: calc(var(--mc-size, 10rem) / -2);
+  left: calc(var(--mc-size, 10rem) / -2);
+  width: var(--mc-size, 10rem);
+  height: var(--mc-size, 10rem);
+  border-radius: var(--mc-radius, 50%);
+  background: var(--mc-override-color, var(--mc-color, rgba(0, 0, 0, 0.1)));
+  transform: scale(var(--mc-scale, 0.07));
+  transition:
+    transform 0.3s ease,
+    opacity 0.2s ease,
+    background 0.3s ease;
+}
+
+/*
+ * Drops are pure filler for the goo filter: always round, never deformed.
+ *
+ * They keep the shared transition rather than overriding it down to opacity.
+ * The per-frame repositioning is on `.magnet-cursor__drop` itself, while this
+ * pseudo-element only ever carries the state scale — so easing it eases the
+ * change of state, not the travel. Without it the drops jumped to the item
+ * size and colour while the head eased into them: one body moving at two
+ * speeds.
+ */
+.magnet-cursor__drop::after {
+  border-radius: 50%;
+}
+
+/*
+ * Hovering an interactive element: bigger, softer, blurred.
+ *
+ * Not while a merge is coming. `--merging` is taken the moment a target is,
+ * where `--merged` waits for the merge to be half done, and the disc used to
+ * spend that gap growing into a hover size it was about to be told to drop.
+ * An element that is going to be traced never wants the hover disc at all.
+ */
+.magnet-cursor--item:not(.magnet-cursor--merging) .magnet-cursor__head {
+  filter: blur(var(--mc-blur, 6px));
+  transition: filter 0.2s ease;
+}
+
+/*
+ * The drops take the item state with the head.
+ *
+ * They sit inside the same goo filter, which flattens the whole body to an
+ * opaque silhouette and then restores one alpha for all of it — so a drop left
+ * on the idle colour does not read as a fainter drop. It reads as a
+ * differently coloured disc sitting in the middle of the head, which is what
+ * it was: the queue clusters at the pointer, and the head around it had
+ * already changed colour.
+ */
+.magnet-cursor--item:not(.magnet-cursor--merging) .magnet-cursor__head::after,
+.magnet-cursor--item:not(.magnet-cursor--merging) .magnet-cursor__drop::after {
+  opacity: 0.31;
+  background: var(--mc-override-color, var(--mc-item-color, rgba(255, 255, 255, 0.64)));
+  transform: scale(var(--mc-item-scale, 0.2));
+}
+
+/*
+ * Only the head takes the backdrop blur. One per drop would be another
+ * backdrop pass per frame for a shape the goo filter is about to flatten
+ * anyway, and the head is what sits over the element being hovered.
+ */
+.magnet-cursor--item:not(.magnet-cursor--merging) .magnet-cursor__head::after {
+  /* Prefixed first: Safari only took the unprefixed property in 18. Without it
+   * the head loses its backdrop blur on Safari 17 and below — and since the goo
+   * filter flattens head and drops into one silhouette, that blur is the only
+   * thing left saying the head is sitting on the element. */
+  -webkit-backdrop-filter: blur(var(--mc-blur, 6px));
+  backdrop-filter: blur(var(--mc-blur, 6px));
+}
+
+/* Pinned state, for elements that should hold the cursor at a fixed size. */
+.magnet-cursor--pinned .magnet-cursor__head::after {
+  transform: scale(var(--mc-pin-scale, 0.26));
+}
+
+/*
+ * Merge layer. Positioned from the viewport origin like the root, because it
+ * takes the geometry of the element it merges with rather than the cursor's.
+ */
+.magnet-cursor__morph {
+  position: fixed;
+  top: 0;
+  left: 0;
+  opacity: 0;
+  will-change: transform, width, height;
+  background: var(--mc-morph-color, var(--mc-item-color, rgba(255, 255, 255, 0.64)));
+}
+
+/* Border mode: the same box with its middle punched out, so it traces the
+ * element instead of covering it. Idle feedback comes from the shared swell
+ * applied to both fill and border morphs, not from a travelling highlight.
+ */
+.magnet-cursor--morph-border .magnet-cursor__morph {
+  padding: var(--mc-morph-width, 2px);
+  background: var(--mc-morph-color, var(--mc-item-color, #fff));
+  opacity: 0;
+  /* Composite as a longhand, not inside the shorthand. `exclude` is the
+   * standard keyword; WebKit's prefixed property spells it `xor` and rejects
+   * the whole `-webkit-mask` declaration when `exclude` appears in it. Current
+   * Safari punches the hole through the unprefixed rule below, so this only
+   * matters where the prefixed property is the only one there is — but a
+   * dropped declaration is not worth keeping either way. The shorthands reset
+   * the composite, so both longhands have to follow them. */
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  mask-composite: exclude;
+}
+
+/*
+ * While merged, the element is the cursor. The whole liquid body steps aside —
+ * head and trail drops alike, because a queue of drops left sitting on the shape
+ * the cursor just became is the one case where the trail contradicts the merge,
+ * and it is most obvious in border mode, where the drops are the only thing
+ * painted inside the ring.
+ */
+.magnet-cursor--merged .magnet-cursor__head::after,
+.magnet-cursor--merged .magnet-cursor__drop::after {
+  opacity: 0;
+  transform: scale(0.2);
+}
+
+/* Fill merges are already hidden continuously by the progress rule below. */
+.magnet-cursor--merged:not(.magnet-cursor--morph-border) .magnet-cursor__head::after,
+.magnet-cursor--merged:not(.magnet-cursor--morph-border) .magnet-cursor__drop::after {
+  opacity: calc(1 - var(--mc-fill-amount, 1));
+  transform: scale(var(--mc-scale, 0.07));
+}
+
+/* A fill merge is revealed radially from the point where the pointer entered.
+ * The head follows the same frame-by-frame progress, so this reads as one
+ * cursor opening into the element instead of a disc being replaced by a layer.
+ */
+.magnet-cursor--merging:not(.magnet-cursor--morph-border) .magnet-cursor__head::after,
+.magnet-cursor--merging:not(.magnet-cursor--morph-border) .magnet-cursor__drop::after {
+  opacity: calc(1 - var(--mc-fill-amount, 0));
+  transform: scale(var(--mc-scale, 0.07));
+  transition: none;
+}
+
+/* ---- Underline ----------------------------------------------------------- */
+
+/*
+ * A rule drawn under whatever the pointer is on.
+ *
+ * A sibling of the liquid body, never a child: the goo filter erases anything
+ * thinner than roughly `1.13 * goo`, and a 2px rule is thinner than the border
+ * trace it already deleted once.
+ *
+ * The engine writes width, position and `scaleX` — the wipe — and the styles
+ * below only decide what the line is made of.
+ */
+.magnet-cursor__underline {
+  position: fixed;
+  top: 0;
+  left: 0;
+  opacity: 0;
+  pointer-events: none;
+  border-radius: 999px;
+  background-color: var(--mc-underline-color, var(--mc-item-color, rgba(255, 255, 255, 0.64)));
+}
+
+/*
+ * Dashes, from the background rather than from a border: a border's dash
+ * pattern is not controllable, and the line has to keep its exact thickness.
+ */
+.magnet-cursor__underline--dashed {
+  border-radius: 0;
+  background-color: transparent;
+  background-image: repeating-linear-gradient(
+    90deg,
+    var(--mc-underline-color, var(--mc-item-color, rgba(255, 255, 255, 0.64))) 0
+      calc(var(--mc-underline-width, 2px) * 3),
+    transparent calc(var(--mc-underline-width, 2px) * 3) calc(var(--mc-underline-width, 2px) * 6)
+  );
+}
+
+/*
+ * A wave, cut out of the fill by a mask.
+ *
+ * The SVG carries no colour — it is a constant, and the paint comes from
+ * `background-color`. Putting the colour inside the data URI would mean
+ * encoding an option value into a URL every time it changed, which is exactly
+ * the surface `SECURITY.md` names. A mask keeps the two apart.
+ */
+.magnet-cursor__underline--wavy {
+  --mc-wave: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='8' viewBox='0 0 16 8'%3E%3Cpath d='M0 4 Q 4 0 8 4 T 16 4' fill='none' stroke='%23000' stroke-width='2'/%3E%3C/svg%3E");
+  border-radius: 0;
+  -webkit-mask-image: var(--mc-wave);
+  mask-image: var(--mc-wave);
+  -webkit-mask-repeat: repeat-x;
+  mask-repeat: repeat-x;
+  -webkit-mask-position: center;
+  mask-position: center;
+  -webkit-mask-size: auto 100%;
+  mask-size: auto 100%;
+}
+
+/*
+ * Gooey trail. The body becomes a fixed size box centred on the pointer so the
+ * SVG filter has a bounded region to work over — without a box the filter would
+ * run across the whole viewport every frame. Drops that stray outside the box
+ * are clamped back into it by the engine.
+ *
+ * On the body rather than the root, because the filter it carries is
+ * destructive: it thresholds alpha, and a border morph is a 2px ring that the
+ * threshold erases. The morph layer is a sibling of this box, not inside it.
+ */
+.magnet-cursor--trail .magnet-cursor__body {
+  width: var(--mc-trail-box, 320px);
+  height: var(--mc-trail-box, 320px);
+  margin-top: calc(var(--mc-trail-box, 320px) / -2);
+  margin-left: calc(var(--mc-trail-box, 320px) / -2);
+  contain: layout style size;
+}
+
+/*
+ * `--mc-radius` is rewritten per frame while the cursor moves, so it must not be
+ * transitioned; it snaps back to a circle on the frame the cursor settles.
+ */
+
+/*
+ * A gravitational liquid surface takes the pointer over entirely; leaving the
+ * global cursor on top of it would read as two competing blobs.
+ *
+ * `!important` for the same reason the merge layer below needs it, and it was
+ * missing here: a liquid surface is usually a button, so it is also an item,
+ * and the item rule carries three classes against this one's attribute and
+ * class. Without it the disc that had been hidden reappeared at `itemScale`
+ * the moment the pointer arrived — on the one element that had already claimed
+ * the pointer for itself.
+ */
+[data-magnet-cursor-gravitating] .magnet-cursor__head::after,
+[data-magnet-cursor-gravitating] .magnet-cursor__drop::after {
+  opacity: 0 !important;
+  transform: scale(0) !important;
+}
+
+/*
+ * The merge layer too. A liquid surface is usually a button, which is also an
+ * item and so also something the cursor will merge with — without this the
+ * effect that claimed the pointer still gets a ring or a fill painted over it.
+ * `!important` because the engine writes this opacity inline every frame; it is
+ * the one declaration that has to outrank the merge's own animation.
+ */
+[data-magnet-cursor-gravitating] .magnet-cursor__morph {
+  opacity: 0 !important;
+}
+
+/*
+ * Pointer left the window.
+ *
+ * `!important` for the reason the rule above it needs it: the item rule carries
+ * three classes to this one's two, so a pointer that left the window while the
+ * item state was held kept the disc painted at `--mc-item-scale` in the corner
+ * it left through. The engine now drops `--item` on the way out; this is the
+ * guarantee that no hover state can outrank an absent pointer.
+ */
+.magnet-cursor--hidden .magnet-cursor__head::after,
+.magnet-cursor--hidden .magnet-cursor__drop::after {
+  opacity: 0 !important;
+  transform: scale(0) !important;
+}
+
+/* Opt-in: hide the native cursor while the custom one is mounted. */
+.magnet-cursor-hide-native,
+.magnet-cursor-hide-native * {
+  cursor: none !important;
+}
+
+/* Safety nets — the engine already bails out in both cases. */
+@media (hover: none) and (pointer: coarse) {
+  .magnet-cursor {
+    display: none !important;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .magnet-cursor,
+  .magnet-cursor__head,
+  .magnet-cursor__head::after,
+  .magnet-cursor__drop::after {
+    transition: none !important;
+  }
+}

@@ -1,0 +1,48 @@
+# ---- Dependencies & build output --------------------------------------------
+node_modules/
+dist/
+.output/
+.nuxt/
+.vitepress/cache/
+.vitepress/dist/
+*.tsbuildinfo
+*.tgz
+
+# ---- Caches & test artifacts ------------------------------------------------
+coverage/
+test-results/
+playwright-report/
+.vite/
+.cache/
+.turbo/
+.eslintcache
+.pnpm-store/
+
+# ---- Logs & OS / editor noise -----------------------------------------------
+*.log
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/*
+!.vscode/extensions.json
+.claude/*.local.json
+
+# ---- Secrets ----------------------------------------------------------------
+.env
+.env.*
+!.env.example
+
+# ---- Private, intentionally kept out of the public repository ---------------
+# Working notes and internal analyses.
+development/
+# The marketing site, docs site and playground (cursor.joia.cn). Contains
+# planning notes, recording scripts and Playwright captures alongside the app.
+marketing/
+site/
+
+# ---- Local one-off scripts (browser checks against a dev server) -----------
+/.pg*.mjs
+
+# ---- Tool generated files ---------------------------------------------------
+.codegraph/
+.playwright-cli/

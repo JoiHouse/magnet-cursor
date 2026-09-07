@@ -1,0 +1,8 @@
+# The chooser shown before a template is picked. `blank_issues_enabled` stays
+# true so questions that fit no template still have somewhere to go — the
+# security link is here to catch the one kind that must not be filed publicly.
+blank_issues_enabled: true
+contact_links:
+  - name: Report a security vulnerability
+    url: https://github.com/JoiHouse/magnet-cursor/security/advisories/new
+    about: Report it privately. Never open a public issue for an unfixed vulnerability.

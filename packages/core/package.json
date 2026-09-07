@@ -1,0 +1,80 @@
+{
+  "name": "@joihouse/magnet-cursor-core",
+  "version": "0.0.0",
+  "description": "Framework-agnostic magnetic cursor and magnetic-element engine. Zero dependencies, SSR safe.",
+  "keywords": [
+    "cursor",
+    "custom-cursor",
+    "magnetic",
+    "magnet",
+    "hover",
+    "animation",
+    "interaction"
+  ],
+  "license": "MIT",
+  "author": "joihouse",
+  "homepage": "https://github.com/JoiHouse/magnet-cursor#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/JoiHouse/magnet-cursor.git",
+    "directory": "packages/core"
+  },
+  "bugs": {
+    "url": "https://github.com/JoiHouse/magnet-cursor/issues"
+  },
+  "type": "module",
+  "sideEffects": [
+    "**/*.css"
+  ],
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "unpkg": "./dist/magnet-cursor.global.js",
+  "jsdelivr": "./dist/magnet-cursor.global.js",
+  "exports": {
+    ".": {
+      "import": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      },
+      "require": {
+        "types": "./dist/index.d.cts",
+        "default": "./dist/index.cjs"
+      }
+    },
+    "./cursor": {
+      "types": "./dist/cursor.d.ts",
+      "import": "./dist/cursor.js"
+    },
+    "./magnet": {
+      "types": "./dist/magnet.d.ts",
+      "import": "./dist/magnet.js"
+    },
+    "./gravitational-liquid": {
+      "types": "./dist/gravitational-liquid.d.ts",
+      "import": "./dist/gravitational-liquid.js"
+    },
+    "./style.css": "./dist/style.css",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "engines": {
+    "node": ">=18.18.0"
+  },
+  "scripts": {
+    "build": "node ../../scripts/clean-dist.mjs && tsup",
+    "dev": "tsup --watch",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "check:exports": "publint --strict && attw --pack . --profile node16 --ignore-rules cjs-resolves-to-esm --exclude-entrypoints ./style.css && node ../../scripts/require-smoke.mjs"
+  },
+  "devDependencies": {
+    "tsup": "^8.3.5",
+    "typescript": "^5.7.2"
+  }
+}

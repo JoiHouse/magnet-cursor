@@ -1,0 +1,45 @@
+{
+  "name": "magnet-cursor-monorepo",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@10.32.1",
+  "engines": {
+    "node": ">=18.18.0"
+  },
+  "scripts": {
+    "build": "pnpm -r --filter \"./packages/*\" run build",
+    "dev": "pnpm -r --parallel --filter \"./packages/*\" run dev",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "pnpm -r --filter \"./packages/*\" run typecheck",
+    "lint": "eslint . && prettier --check \"**/*.{ts,tsx,vue,js,json,md,css}\"",
+    "format": "prettier --write \"**/*.{ts,tsx,vue,js,json,md,css}\"",
+    "changeset": "changeset",
+    "version-packages": "changeset version",
+    "release": "pnpm build && pnpm check:exports && changeset publish",
+    "lint:fix": "eslint . --fix && prettier --write \"**/*.{ts,tsx,vue,js,json,md,css}\"",
+    "check:exports": "pnpm -r --filter \"./packages/*\" run check:exports"
+  },
+  "devDependencies": {
+    "@arethetypeswrong/cli": "^0.18.5",
+    "@changesets/changelog-github": "^1.0.1",
+    "@changesets/cli": "^2.27.10",
+    "@eslint/js": "^10.0.1",
+    "@types/node": "^22.10.2",
+    "eslint": "^10.10.0",
+    "globals": "^17.12.0",
+    "jsdom": "^25.0.1",
+    "prettier": "^3.4.2",
+    "publint": "^0.3.24",
+    "tsup": "^8.3.5",
+    "typescript": "^5.7.2",
+    "typescript-eslint": "^8.69.0",
+    "vitest": "^2.1.8"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "esbuild"
+    ]
+  }
+}
