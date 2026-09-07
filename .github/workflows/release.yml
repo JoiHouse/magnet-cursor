@@ -15,7 +15,7 @@ jobs:
   # The CI workflow is not a gate on this one — a push to `main` runs both
   # side by side — so the same checks run here before anything is versioned
   # or published.
-  verify:
+  checks:
     runs-on: ubuntu-latest
     outputs:
       # Whether unreleased changesets exist. With some pending, the run opens
@@ -60,8 +60,8 @@ jobs:
   # Opens (or updates) the "Version Packages" PR. Needs no secret beyond the
   # workflow token, so it runs unattended on every push.
   version:
-    needs: verify
-    if: needs.verify.outputs.pending == 'true'
+    needs: checks
+    if: needs.checks.outputs.pending == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -75,20 +75,24 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
-      - uses: changesets/action@v1
+      - uses: changesets/action@v2
         with:
-          version: pnpm version-packages
-          commit: 'chore: version packages'
-          title: 'chore: version packages'
+          version-script: pnpm version-packages
+          commit-message: 'chore: version packages'
+          pr-title: 'chore: version packages'
+          github-token: ${{ secrets.GITHUB_TOKEN }}
         env:
+          # Not for the action — v2 only reads its input — but for the
+          # changelog generator, which `pnpm version-packages` runs as a child
+          # process and which looks up PR numbers and authors through this.
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   # Publishes whatever the merged version PR bumped. The `npm` environment
   # holds NPM_TOKEN and a required reviewer, so this job waits for a human to
   # approve the deployment before the secret is even available to it.
   publish:
-    needs: verify
-    if: needs.verify.outputs.pending == 'false'
+    needs: checks
+    if: needs.checks.outputs.pending == 'false'
     runs-on: ubuntu-latest
     environment: npm
     steps:
@@ -106,11 +110,11 @@ jobs:
 
       # `pnpm release` builds and re-runs the export checks on the packed
       # output right before `changeset publish`.
-      - uses: changesets/action@v1
+      - uses: changesets/action@v2
         with:
-          publish: pnpm release
+          publish-script: pnpm release
+          github-token: ${{ secrets.GITHUB_TOKEN }}
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
           # Attaches a signed provenance statement to every publish, linking
           # the tarball on npm to this workflow run and commit. Needs the
