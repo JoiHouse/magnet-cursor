@@ -1,6 +1,6 @@
 {
   "name": "@joihouse/magnet-cursor-react",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "React components and hooks for the magnet-cursor engine. Next.js/SSR safe.",
   "keywords": [
     "react",
