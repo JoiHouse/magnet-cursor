@@ -6,7 +6,9 @@
 
 ### P1.1 前置
 
-Node `>=18.18`，pnpm `10.x`（根 `package.json` 的 `packageManager` 锁定精确版本，`corepack enable` 后自动匹配）。根目录 `pnpm install` 一次装完三个包。
+Node `>=22`，pnpm `11.x`（根 `package.json` 的 `packageManager` 锁定精确版本，`corepack enable` 后自动匹配）。根目录 `pnpm install` 一次装完三个包。发布的包本身对使用者仍是 Node `>=18.18`，这里的要求只针对开发环境。
+
+pnpm 11 的两个默认值要知道：安装脚本只对 `pnpm-workspace.yaml` 里 `allowBuilds` 列出的包运行（目前只有 esbuild）；刚发布不到 24 小时的新版本默认不解析（`minimumReleaseAge`），`pnpm add` 拿不到最新版时先想到这一条，临时绕过用 `--config.minimumReleaseAge=0`。
 
 ### P1.2 命令
 

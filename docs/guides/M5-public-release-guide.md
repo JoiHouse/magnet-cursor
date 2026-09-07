@@ -292,7 +292,9 @@ curl -sS -o /dev/null -w '%{http_code}\n' https://cursor.joia.cn/playground
    ```
 
 8. 打 tag `v0.1.0` 推上去，GitHub Release 由 changesets 自动创建则不再手建。
-9. 三个包存在后切 Trusted Publishing：每个包 Settings → Trusted Publisher → GitHub Actions，仓库 `JoiHouse/magnet-cursor`、workflow `release.yml`、environment `npm`。然后删掉 release.yml 里的 `NODE_AUTH_TOKEN` 行和 environment 里的 `NPM_TOKEN`，从此没有长期 token。
+9. 三个包存在后切 Trusted Publishing：每个包 Settings → Trusted Publisher → GitHub Actions，仓库 `JoiHouse/magnet-cursor`、workflow `release.yml`、environment `npm`。然后删掉 release.yml 里的 `NODE_AUTH_TOKEN`、`registry-url` 和 `NPM_CONFIG_PROVENANCE`，environment 里的 `NPM_TOKEN` 也删，从此没有长期 token。
+
+   **踩坑**：changesets 检测到 pnpm-lock 后用 `pnpm publish` 发布，而 **OIDC 信任发布是 pnpm 11 才有的**——拆开 10.32.1、10.34.0、11.0.0 的发布包对比，10.x 里没有任何 OIDC 代码。所以这一步的前提是先升 pnpm 11：`packageManager` 改版本，`.npmrc` 的非鉴权设置与 `onlyBuiltDependencies` 迁到 `pnpm-workspace.yaml`（`allowBuilds`），开发环境 Node 提到 22。lockfile v9 格式不变，重装后无 diff。pnpm 11 在 OIDC 下会自动查仓库可见性，公开就自动附 provenance，不再需要环境变量。另外 setup-node 的 `registry-url` 要去掉，它会往 `.npmrc` 写一条 `_authToken=${NODE_AUTH_TOKEN}` 占位，变量不存在时 npm 与 pnpm 都会报 "Failed to replace env in config"。
 
 ### P6.2 注意事项
 

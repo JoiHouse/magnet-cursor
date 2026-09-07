@@ -1,2 +1,13 @@
 packages:
   - 'packages/*'
+
+# pnpm 11 reads settings from here; .npmrc is auth and registry only.
+
+# Install scripts run only for packages listed here. esbuild's postinstall
+# swaps in the platform binary; nothing else in the tree needs to build.
+allowBuilds:
+  esbuild: true
+
+shamefullyHoist: false
+strictPeerDependencies: false
+autoInstallPeers: true
