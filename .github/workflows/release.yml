@@ -87,9 +87,13 @@ jobs:
           # process and which looks up PR numbers and authors through this.
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-  # Publishes whatever the merged version PR bumped. The `npm` environment
-  # holds NPM_TOKEN and a required reviewer, so this job waits for a human to
-  # approve the deployment before the secret is even available to it.
+  # Publishes whatever the merged version PR bumped. There is no npm token:
+  # each package on npm names this repository, this workflow file and the
+  # `npm` environment as its trusted publisher, and `pnpm publish` (11+)
+  # exchanges the job's OIDC identity for a short-lived credential through
+  # `id-token: write`. The environment carries a required reviewer, so the
+  # job waits for a human to approve the deployment first. Provenance is
+  # attached automatically for a public repository.
   publish:
     needs: checks
     if: needs.checks.outputs.pending == 'false'
@@ -100,11 +104,12 @@ jobs:
 
       - uses: pnpm/action-setup@v4
 
+      # No `registry-url` here on purpose: it would write an `_authToken`
+      # placeholder into .npmrc that nothing fills in.
       - uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: pnpm
-          registry-url: https://registry.npmjs.org
 
       - run: pnpm install --frozen-lockfile
 
@@ -114,10 +119,3 @@ jobs:
         with:
           publish-script: pnpm release
           github-token: ${{ secrets.GITHUB_TOKEN }}
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-          # Attaches a signed provenance statement to every publish, linking
-          # the tarball on npm to this workflow run and commit. Needs the
-          # `id-token: write` permission above; npm refuses the publish if the
-          # attestation cannot be made rather than silently dropping it.
-          NPM_CONFIG_PROVENANCE: 'true'

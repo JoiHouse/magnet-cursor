@@ -14,7 +14,9 @@ pnpm install
 pnpm build
 ```
 
-Node `>=18.18` and pnpm `10.x` are required (`packageManager` pins the exact version).
+Node `>=22` and pnpm `11.x` are required to work on the repository (`packageManager` pins the exact
+version; `corepack enable` picks it up). The published packages themselves still support Node
+`>=18.18` for server-side rendering.
 
 ## Layout
 
