@@ -467,7 +467,7 @@ describe('createMagnetCursor', () => {
     expect(el.querySelectorAll('.magnet-cursor__drop')).toHaveLength(3)
     expect(el.classList.contains('magnet-cursor--trail')).toBe(true)
     expect(body(el).style.getPropertyValue('--mc-trail-box')).toBe('240px')
-    expect(body(el).style.filter).toMatch(/^url\(#mc-goo-/)
+    expect(body(el).style.filter).toMatch(/^url\(["']?#mc-goo-/)
 
     // The 10% SVG default would clip the blur exactly where the drops need to
     // reach each other, and an unbounded region would filter the whole viewport.
@@ -534,7 +534,7 @@ describe('createMagnetCursor', () => {
     const el = cursor.element!
     const morph = el.querySelector<HTMLElement>('.magnet-cursor__morph')!
 
-    expect(body(el).style.filter).toMatch(/^url\(#mc-goo-/)
+    expect(body(el).style.filter).toMatch(/^url\(["']?#mc-goo-/)
     expect(body(el).contains(morph)).toBe(false)
     expect(morph.parentElement).toBe(el)
     // Still under the root, so the blend mode and the modifier classes reach it.
