@@ -81,9 +81,9 @@ it is for most dependencies, and it helps to know where it actually is.
 
 **In scope**
 
-- Anything that turns library **options** into markup or CSS. Two SVG filters
-  are built by interpolating option-derived values into `innerHTML`
-  (`cursor.ts`, `liquid-surface.ts`), and several options are written straight
+- Anything that turns library **options** into markup or CSS. SVG filter nodes
+  are built with DOM APIs and option-derived values are written as attributes
+  (`cursor.ts`, `liquid-surface.ts`); several options are also written straight
   into custom properties — `color`, `itemColor`, `blendMode` among them.
 - Anything read off the page: the mode, colour and item attributes, and the
   selectors matched against the DOM.

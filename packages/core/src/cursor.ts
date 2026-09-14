@@ -171,6 +171,11 @@ export interface MagnetCursorOptions {
    * interactive element it covers what it is pointing at. Blending is the way
    * out: `'difference'` or `'exclusion'` invert the content underneath instead
    * of hiding it, and `'multiply'` darkens it. Default `'normal'`.
+   *
+   * While it is anything but `'normal'`, the item state's backdrop blur is
+   * painted from a sibling element placed just before the cursor
+   * (`<className>__backdrop-host`), because a blending element is a boundary no
+   * blur inside it can read past. The blur itself is therefore not blended.
    */
   blendMode?: string
   /** Stacking order of the cursor element. Default `9999`. */
@@ -354,6 +359,10 @@ const TAIL_STEP = 5
 
 /** Identity rows for a `feColorMatrix` that only touches alpha. */
 const KEEP_RGB = '1 0 0 0 0  0 1 0 0 0  0 0 1 0 0'
+
+const SVG_NS = 'http://www.w3.org/2000/svg'
+const createSvgElement = <T extends SVGElement>(tag: string): T =>
+  document.createElementNS(SVG_NS, tag) as T
 
 /**
  * Alpha multiplier that flattens the drops to an opaque silhouette before they
@@ -548,6 +557,54 @@ export function createMagnetCursor(options: MagnetCursorOptions = {}): MagnetCur
   const headEl = document.createElement('div')
   bodyEl.appendChild(headEl)
 
+  /**
+   * The item state's backdrop blur, on a layer of its own beside the body.
+   *
+   * A `backdrop-filter` only sees as far back as its nearest ancestor with a
+   * `filter`, and the head carries one in the item state while the body
+   * carries the goo filter whenever a trail is on — so on the head's disc the
+   * blur had nothing to read and painted nothing, in Chrome, Safari and Firefox
+   * alike. Safari also drops it when `filter` sits on the same element, which
+   * rules out merely moving the head's blur down onto the disc. Measured in all
+   * three; see development/safari-compat.md (maintainer notes, not published).
+   *
+   * It sits first in paint order, so it blurs the page and nothing of the
+   * cursor's own, and takes the root's modifier classes — inside the root, or
+   * in `backdropHost` while the root blends. The root sits on the head's centre
+   * in both layouts, so only the head's deformation has to be mirrored onto it.
+   */
+  const backdropEl = document.createElement('div')
+  el.insertBefore(backdropEl, bodyEl)
+
+  /**
+   * Where the backdrop layer lives while the root blends.
+   *
+   * A `mix-blend-mode` other than `normal` makes the root a boundary no
+   * backdrop blur inside it can read past, the same as a filter does — measured
+   * in Chrome and Safari. So only while the root blends, the layer moves out to
+   * a host placed just before the root: the same position, state classes and
+   * custom properties, and no blend mode. It blurs the page again; it just does
+   * not blend with it, which a blur the cursor paints on top of never needed.
+   */
+  let backdropHost: HTMLElement | null = null
+
+  /** A state modifier, written to the root and to the backdrop host alike. */
+  const toggleState = (name: string, on: boolean) => {
+    el.classList.toggle(modifier(name), on)
+    backdropHost?.classList.toggle(modifier(name), on)
+  }
+
+  /** A custom property, written to the root and to the backdrop host alike. */
+  const setVar = (name: string, value: string) => {
+    el.style.setProperty(name, value)
+    backdropHost?.style.setProperty(name, value)
+  }
+
+  const removeVar = (name: string) => {
+    el.style.removeProperty(name)
+    backdropHost?.style.removeProperty(name)
+  }
+
   interface Drop {
     readonly el: HTMLElement
     readonly scale: number
@@ -672,16 +729,43 @@ export function createMagnetCursor(options: MagnetCursorOptions = {}): MagnetCur
 
   const applyStyle = () => {
     const p = paint()
-    el.style.setProperty('--mc-size', toCssLength(opts.size))
-    el.style.setProperty('--mc-scale', String(p.scale))
-    el.style.setProperty('--mc-item-scale', String(p.itemScale))
-    el.style.setProperty('--mc-pin-scale', String(p.pinScale))
-    el.style.setProperty('--mc-color', p.color)
-    el.style.setProperty('--mc-item-color', p.itemColor)
-    el.style.setProperty('--mc-blur', toCssLength(p.blur))
-    el.style.setProperty('--mc-blend', p.blendMode)
-    el.style.setProperty('--mc-z-index', String(opts.zIndex))
+    setVar('--mc-size', toCssLength(opts.size))
+    setVar('--mc-scale', String(p.scale))
+    setVar('--mc-item-scale', String(p.itemScale))
+    setVar('--mc-pin-scale', String(p.pinScale))
+    setVar('--mc-color', p.color)
+    setVar('--mc-item-color', p.itemColor)
+    setVar('--mc-blur', toCssLength(p.blur))
+    setVar('--mc-blend', p.blendMode)
+    setVar('--mc-z-index', String(opts.zIndex))
     sizePx = resolveLength(opts.size, container)
+    // Here and not only in `setOptions`: a theme flip can change the blend mode too.
+    placeBackdrop(p.blendMode)
+  }
+
+  const placeBackdrop = (blendMode: string) => {
+    if (blendMode === 'normal') {
+      if (!backdropHost) return
+      el.insertBefore(backdropEl, el.firstChild)
+      backdropHost.remove()
+      backdropHost = null
+      return
+    }
+    if (!backdropHost) {
+      backdropHost = document.createElement('div')
+      backdropHost.setAttribute('aria-hidden', 'true')
+      backdropHost.appendChild(backdropEl)
+      // It starts from the root as it stands; every later write reaches both.
+      for (const name of Array.from(el.style)) {
+        if (name.startsWith('--'))
+          backdropHost.style.setProperty(name, el.style.getPropertyValue(name))
+      }
+      backdropHost.style.transform = el.style.transform
+      syncClasses()
+    }
+    // Before the root, so the blur paints under a cursor sharing its z-index.
+    const parent = el.parentNode
+    if (parent && backdropHost.nextSibling !== el) parent.insertBefore(backdropHost, el)
   }
 
   const modifier = (name: string) => `${opts.className}--${name}`
@@ -770,22 +854,24 @@ export function createMagnetCursor(options: MagnetCursorOptions = {}): MagnetCur
     el.className = opts.className
     bodyEl.className = element('body')
     headEl.className = element('head')
+    backdropEl.className = element('backdrop')
+    if (backdropHost) backdropHost.className = element('backdrop-host')
     if (morphEl) morphEl.element.className = element('morph')
     if (underlineEl) underlineEl.element.className = element('underline')
     for (const drop of drops) drop.el.className = element('drop')
-    el.classList.toggle(modifier('trail'), trail !== null)
-    el.classList.toggle(modifier('morph'), morph !== null)
-    el.classList.toggle(modifier('underline'), underline !== null)
-    el.classList.toggle(modifier('morph-border'), (morphEl?.mode ?? morph?.mode) === 'border')
+    toggleState('trail', trail !== null)
+    toggleState('morph', morph !== null)
+    toggleState('underline', underline !== null)
+    toggleState('morph-border', (morphEl?.mode ?? morph?.mode) === 'border')
     // `merged` is state like the rest: rebuilding the list without it would
     // drop it whenever the merge target changes.
-    el.classList.toggle(modifier('merged'), merged)
+    toggleState('merged', merged)
     // Held from the moment a target is taken, where `merged` waits until the
     // merge is half done — see the toggle in the frame loop.
-    el.classList.toggle(modifier('merging'), morphEl?.attached === true)
-    el.classList.toggle(modifier('item'), isItem)
-    el.classList.toggle(modifier('pinned'), isPinned)
-    el.classList.toggle(modifier('hidden'), isHidden)
+    toggleState('merging', morphEl?.attached === true)
+    toggleState('item', isItem)
+    toggleState('pinned', isPinned)
+    toggleState('hidden', isHidden)
   }
 
   const writeFrame = (
@@ -796,18 +882,19 @@ export function createMagnetCursor(options: MagnetCursorOptions = {}): MagnetCur
     scaleY: number,
     tail: number,
   ) => {
-    el.style.transform = `translate3d(${x}px, ${y}px, 0)`
-    headEl.style.transform = `rotate(${angle}deg) scale(${scaleX}, ${scaleY})`
+    const position = `translate3d(${x}px, ${y}px, 0)`
+    el.style.transform = position
+    if (backdropHost) backdropHost.style.transform = position
+    const deform = `rotate(${angle}deg) scale(${scaleX}, ${scaleY})`
+    headEl.style.transform = deform
+    backdropEl.style.transform = deform
 
     // The head is rotated onto its direction of travel, so the trailing edge is
     // always the left pair of corners. Quantised to `TAIL_STEP` so the property
     // — and the paint it costs — only changes when the shape visibly does.
     if (tail === lastTail) return
     lastTail = tail
-    el.style.setProperty(
-      '--mc-radius',
-      tail === 50 ? CIRCLE : `${tail}% 50% 50% ${tail}% / 50% 50% 50% 50%`,
-    )
+    setVar('--mc-radius', tail === 50 ? CIRCLE : `${tail}% 50% 50% ${tail}% / 50% 50% 50% 50%`)
   }
 
   /**
@@ -847,12 +934,34 @@ export function createMagnetCursor(options: MagnetCursorOptions = {}): MagnetCur
     // silhouette first, merged, and then faded back to the alpha they were
     // actually drawn with — the merge maths never sees the transparency.
     const alpha = resolveAlpha(paint().color, container)
-    gooSvg.innerHTML = `<defs><filter id="${filterId}" x="-50%" y="-50%" width="200%" height="200%">
-<feColorMatrix in="SourceGraphic" type="matrix" values="${KEEP_RGB}  0 0 0 ${SOLID_ALPHA} 0" result="solid"/>
-<feGaussianBlur in="solid" stdDeviation="${trail.goo}" result="blur"/>
-<feColorMatrix in="blur" type="matrix" values="${KEEP_RGB}  0 0 0 19 -9" result="goo"/>
-<feColorMatrix in="goo" type="matrix" values="${KEEP_RGB}  0 0 0 ${alpha} 0"/>
-</filter></defs>`
+    const defs = createSvgElement<SVGDefsElement>('defs')
+    const filter = createSvgElement<SVGFilterElement>('filter')
+    filter.setAttribute('id', filterId)
+    filter.setAttribute('x', '-50%')
+    filter.setAttribute('y', '-50%')
+    filter.setAttribute('width', '200%')
+    filter.setAttribute('height', '200%')
+    const solid = createSvgElement<SVGFEColorMatrixElement>('feColorMatrix')
+    solid.setAttribute('in', 'SourceGraphic')
+    solid.setAttribute('type', 'matrix')
+    solid.setAttribute('values', `${KEEP_RGB}  0 0 0 ${SOLID_ALPHA} 0`)
+    solid.setAttribute('result', 'solid')
+    const blur = createSvgElement<SVGFEGaussianBlurElement>('feGaussianBlur')
+    blur.setAttribute('in', 'solid')
+    blur.setAttribute('stdDeviation', String(trail.goo))
+    blur.setAttribute('result', 'blur')
+    const goo = createSvgElement<SVGFEColorMatrixElement>('feColorMatrix')
+    goo.setAttribute('in', 'blur')
+    goo.setAttribute('type', 'matrix')
+    goo.setAttribute('values', `${KEEP_RGB}  0 0 0 19 -9`)
+    goo.setAttribute('result', 'goo')
+    const fade = createSvgElement<SVGFEColorMatrixElement>('feColorMatrix')
+    fade.setAttribute('in', 'goo')
+    fade.setAttribute('type', 'matrix')
+    fade.setAttribute('values', `${KEEP_RGB}  0 0 0 ${alpha} 0`)
+    filter.append(solid, blur, goo, fade)
+    defs.append(filter)
+    gooSvg.append(defs)
     container.appendChild(gooSvg)
     gooAlphaEl = gooSvg.querySelector('feColorMatrix:last-of-type')
 
@@ -1037,7 +1146,7 @@ export function createMagnetCursor(options: MagnetCursorOptions = {}): MagnetCur
       : false
     // Fill is one visual handoff: the morph reveals from the entry point while
     // the ordinary cursor fades on exactly the same progress value.
-    el.style.setProperty('--mc-fill-amount', String(morphEl?.fillAmount ?? 0))
+    setVar('--mc-fill-amount', String(morphEl?.fillAmount ?? 0))
     // Same origin as the merge layer, and for the same reason: both are
     // `position: fixed` inside a root that is their containing block.
     const underlineMoving = underlineEl ? underlineEl.step(dt, cursorX, cursorY) : false
@@ -1049,13 +1158,13 @@ export function createMagnetCursor(options: MagnetCursorOptions = {}): MagnetCur
     const morphModeNow = morphEl?.mode
     if (morphModeNow !== morphMode) {
       morphMode = morphModeNow
-      el.classList.toggle(modifier('morph-border'), morphModeNow === 'border')
+      toggleState('morph-border', morphModeNow === 'border')
     }
 
     const mergedNow = (morphEl?.amount ?? 0) > 0.5
     if (mergedNow !== merged) {
       merged = mergedNow
-      el.classList.toggle(modifier('merged'), merged)
+      toggleState('merged', merged)
       syncHideNative()
     }
 
@@ -1071,7 +1180,7 @@ export function createMagnetCursor(options: MagnetCursorOptions = {}): MagnetCur
     const mergingNow = morphEl?.attached === true
     if (mergingNow !== merging) {
       merging = mergingNow
-      el.classList.toggle(modifier('merging'), merging)
+      toggleState('merging', merging)
     }
 
     const restX = mouseX - cursorX
@@ -1145,11 +1254,24 @@ export function createMagnetCursor(options: MagnetCursorOptions = {}): MagnetCur
 
     if (isHidden) {
       isHidden = false
-      el.classList.remove(modifier('hidden'))
+      toggleState('hidden', false)
     }
   }
 
   const onMouseMove = (event: MouseEvent) => {
+    const outsideViewport =
+      event.clientX < 0 ||
+      event.clientY < 0 ||
+      event.clientX >= window.innerWidth ||
+      event.clientY >= window.innerHeight
+    // Some browsers keep dispatching move events while the pointer crosses
+    // the browser chrome and never deliver a final mouseout. Do not adopt an
+    // invalid coordinate: it would wake the render loop and leave the cursor
+    // painted at the edge indefinitely.
+    if (outsideViewport) {
+      onMouseLeave()
+      return
+    }
     adopt(event.clientX, event.clientY)
     schedule()
   }
@@ -1159,10 +1281,45 @@ export function createMagnetCursor(options: MagnetCursorOptions = {}): MagnetCur
     schedule()
   }
 
+  /**
+   * A pointer the page can no longer see.
+   *
+   * `mouseleave` on the document is not enough on its own. Safari fires none
+   * when its window loses focus — only `blur` — so the disc stayed painted over
+   * a page the pointer had left for another app; Chrome fires `mouseleave` there
+   * too, which is why it only showed in Safari. Measured in release Safari 26.5.
+   * A top-level `mouseout` (no `relatedTarget`) is the other signal every engine
+   * sends when the pointer leaves the document. Any of them lands here, so a
+   * second one is a no-op, and nothing is shown again until a `mousemove` says
+   * where the pointer actually is.
+   */
+  /**
+   * Browsers disagree on the `relatedTarget` used when the pointer leaves the
+   * viewport. It can be `null`, `window`, or a node outside this document. A
+   * null-only check misses the latter two, which is especially easy to hit when
+   * the pointer is moved slowly into browser chrome.
+   */
+  const isOutsideDocument = (target: EventTarget | null): boolean => {
+    if (target === null || target === window) return true
+    if (target === document || target === document.documentElement) return false
+    if (typeof Node === 'function' && target instanceof Node) {
+      return !document.documentElement.contains(target)
+    }
+    return true
+  }
+
+  const onMouseOut = (event: MouseEvent) => {
+    const outside = isOutsideDocument(event.relatedTarget)
+    if (outside) onMouseLeave()
+  }
+
+  const onWindowBlur = () => onMouseLeave()
+  const onDocumentMouseLeave = () => onMouseLeave()
+
   const onMouseLeave = () => {
     isHidden = true
     needsSnap = true
-    el.classList.add(modifier('hidden'))
+    toggleState('hidden', true)
     /*
      * Hover state is dropped with the pointer.
      *
@@ -1174,16 +1331,16 @@ export function createMagnetCursor(options: MagnetCursorOptions = {}): MagnetCur
      */
     if (isItem) {
       isItem = false
-      el.classList.remove(modifier('item'))
+      toggleState('item', false)
       opts.onItemChange?.(false, null)
     }
     if (isPinned) {
       isPinned = false
-      el.classList.remove(modifier('pinned'))
+      toggleState('pinned', false)
     }
     if (colorOverride !== null) {
       colorOverride = null
-      el.style.removeProperty('--mc-override-color')
+      removeVar('--mc-override-color')
     }
     if (morphEl && morphTarget) {
       morphTarget = null
@@ -1229,7 +1386,7 @@ export function createMagnetCursor(options: MagnetCursorOptions = {}): MagnetCur
     const nextIsItem = item !== null
     if (nextIsItem !== isItem) {
       isItem = nextIsItem
-      el.classList.toggle(modifier('item'), isItem)
+      toggleState('item', isItem)
       opts.onItemChange?.(isItem, item)
     }
 
@@ -1237,14 +1394,14 @@ export function createMagnetCursor(options: MagnetCursorOptions = {}): MagnetCur
     const nextColor = colored?.getAttribute(opts.colorAttribute) || null
     if (nextColor !== colorOverride) {
       colorOverride = nextColor
-      if (colorOverride === null) el.style.removeProperty('--mc-override-color')
-      else el.style.setProperty('--mc-override-color', colorOverride)
+      if (colorOverride === null) removeVar('--mc-override-color')
+      else setVar('--mc-override-color', colorOverride)
     }
 
     const nextIsPinned = opts.pinSelector ? target.closest(opts.pinSelector) !== null : false
     if (nextIsPinned !== isPinned) {
       isPinned = nextIsPinned
-      el.classList.toggle(modifier('pinned'), isPinned)
+      toggleState('pinned', isPinned)
     }
   }
 
@@ -1291,7 +1448,9 @@ export function createMagnetCursor(options: MagnetCursorOptions = {}): MagnetCur
 
   document.addEventListener('mousemove', onMouseMove, { passive: true })
   document.addEventListener('mouseenter', onMouseEnter)
-  document.addEventListener('mouseleave', onMouseLeave)
+  document.addEventListener('mouseleave', onDocumentMouseLeave)
+  document.addEventListener('mouseout', onMouseOut, { passive: true })
+  window.addEventListener('blur', onWindowBlur)
   document.addEventListener('mouseover', onMouseOver, { passive: true })
   document.addEventListener('visibilitychange', onVisibilityChange)
 
@@ -1383,7 +1542,9 @@ export function createMagnetCursor(options: MagnetCursorOptions = {}): MagnetCur
       cancel()
       document.removeEventListener('mousemove', onMouseMove)
       document.removeEventListener('mouseenter', onMouseEnter)
-      document.removeEventListener('mouseleave', onMouseLeave)
+      document.removeEventListener('mouseleave', onDocumentMouseLeave)
+      document.removeEventListener('mouseout', onMouseOut)
+      window.removeEventListener('blur', onWindowBlur)
       document.removeEventListener('mouseover', onMouseOver)
       document.removeEventListener('visibilitychange', onVisibilityChange)
       themeWatcher?.destroy()
@@ -1396,6 +1557,7 @@ export function createMagnetCursor(options: MagnetCursorOptions = {}): MagnetCur
       gooSvg?.remove()
       morphEl?.destroy()
       underlineEl?.destroy()
+      backdropHost?.remove()
       el.remove()
     },
   }

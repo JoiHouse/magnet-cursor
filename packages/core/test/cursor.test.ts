@@ -170,6 +170,95 @@ describe('createMagnetCursor', () => {
   })
 
   /**
+   * Safari fires no `mouseleave` when its window loses focus, only `blur`, so
+   * the disc stayed painted over a page the pointer had left for another app.
+   * It comes back on the next real pointer reading, not on `focus`, which says
+   * nothing about where the pointer is.
+   */
+  it('hides itself when the window loses focus, until the pointer moves again', () => {
+    const items: boolean[] = []
+    const cursor = createMagnetCursor({ ...BASE, onItemChange: (isItem) => items.push(isItem) })
+    const el = cursor.element!
+    const link = document.createElement('a')
+    document.body.appendChild(link)
+    seed(200, 200)
+    link.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }))
+
+    window.dispatchEvent(new FocusEvent('blur'))
+    expect(el.classList.contains('magnet-cursor--hidden')).toBe(true)
+    expect(el.classList.contains('magnet-cursor--item')).toBe(false)
+
+    window.dispatchEvent(new FocusEvent('focus'))
+    expect(el.classList.contains('magnet-cursor--hidden')).toBe(true)
+
+    move(220, 210)
+    expect(el.classList.contains('magnet-cursor--hidden')).toBe(false)
+    expect(items).toEqual([true, false])
+
+    cursor.destroy()
+    window.dispatchEvent(new FocusEvent('blur'))
+    expect(el.classList.contains('magnet-cursor--hidden')).toBe(false)
+  })
+
+  /** A top-level `mouseout` is the leave signal every engine sends, `mouseleave` or not. */
+  it('hides itself on a mouseout that leaves the document, and only then', () => {
+    const cursor = createMagnetCursor(BASE)
+    const el = cursor.element!
+    const a = document.createElement('a')
+    const b = document.createElement('span')
+    document.body.append(a, b)
+    seed(200, 200)
+
+    // Moving between elements carries a relatedTarget: the pointer is still here.
+    a.dispatchEvent(new MouseEvent('mouseout', { bubbles: true, relatedTarget: b }))
+    expect(el.classList.contains('magnet-cursor--hidden')).toBe(false)
+
+    a.dispatchEvent(new MouseEvent('mouseout', { bubbles: true, relatedTarget: null }))
+    expect(el.classList.contains('magnet-cursor--hidden')).toBe(true)
+    // Chrome sends `mouseleave` as well; the second signal changes nothing.
+    document.dispatchEvent(new MouseEvent('mouseleave'))
+    expect(el.classList.contains('magnet-cursor--hidden')).toBe(true)
+
+    move(210, 200)
+    expect(el.classList.contains('magnet-cursor--hidden')).toBe(false)
+
+    cursor.destroy()
+  })
+
+  it('treats a window relatedTarget as leaving the viewport', () => {
+    const cursor = createMagnetCursor(BASE)
+    const el = cursor.element!
+    seed(200, 200)
+
+    const event = new MouseEvent('mouseout', { bubbles: true })
+    Object.defineProperty(event, 'relatedTarget', { value: window })
+    document.body.dispatchEvent(event)
+    expect(el.classList.contains('magnet-cursor--hidden')).toBe(true)
+
+    cursor.destroy()
+  })
+
+  it('hides itself when move events cross outside the viewport without mouseout', () => {
+    const cursor = createMagnetCursor(BASE)
+    const el = cursor.element!
+    seed(200, 200)
+
+    // The browser can report a final move with a negative coordinate while
+    // moving slowly into browser chrome, without dispatching mouseout.
+    move(200, -1)
+    expect(el.classList.contains('magnet-cursor--hidden')).toBe(true)
+
+    // The viewport edge itself is still valid and must not hide the cursor.
+    move(200, 0)
+    expect(el.classList.contains('magnet-cursor--hidden')).toBe(false)
+
+    move(-1, 200)
+    expect(el.classList.contains('magnet-cursor--hidden')).toBe(true)
+
+    cursor.destroy()
+  })
+
+  /**
    * Leaving the window fires `mouseout` and never a last `mouseover`, so a
    * pointer that shoots off the edge from a link is the last thing the item
    * state hears about. Held, it outranks `--hidden` in the stylesheet and the
@@ -479,6 +568,16 @@ describe('createMagnetCursor', () => {
     expect(document.querySelector('filter')).toBeNull()
   })
 
+  it('treats trail filter options as SVG attribute values instead of markup', () => {
+    const goo = '"><script>window.__injected = true</script>' as unknown as number
+    const cursor = createMagnetCursor({ ...BASE, trail: { goo } })
+
+    expect(document.querySelector('script')).toBeNull()
+    expect(document.querySelector('feGaussianBlur')!.getAttribute('stdDeviation')).toBe(goo)
+
+    cursor.destroy()
+  })
+
   /**
    * The one arithmetic relationship the defaults have to satisfy.
    *
@@ -542,6 +641,105 @@ describe('createMagnetCursor', () => {
 
     // And it paints beneath the body: the disc stretches into the ring.
     expect(morph.compareDocumentPosition(body(el)) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+
+    cursor.destroy()
+  })
+
+  /**
+   * A backdrop blur reads no further back than its nearest filtered ancestor.
+   * On the head's disc it sat under the head's own item-state blur, and under
+   * the goo filter whenever a trail was on, so it painted nothing in any engine.
+   */
+  it('keeps the backdrop blur layer out of the filtered head and body', () => {
+    const cursor = createMagnetCursor({ ...BASE, trail: { count: 3 } })
+    const el = cursor.element!
+    const backdrop = el.querySelector<HTMLElement>('.magnet-cursor__backdrop')!
+    const head = el.querySelector<HTMLElement>('.magnet-cursor__head')!
+
+    expect(backdrop).not.toBeNull()
+    expect(backdrop.parentElement).toBe(el)
+    expect(body(el).contains(backdrop)).toBe(false)
+    // First in paint order: it blurs the page, not the cursor painted above it.
+    expect(el.firstElementChild).toBe(backdrop)
+
+    // It stands in for the head's disc, so it takes the same deformation.
+    seed(100, 100)
+    move(600, 100)
+    flushFrames(3)
+    expect(head.style.transform).toMatch(/^rotate\(/)
+    expect(backdrop.style.transform).toBe(head.style.transform)
+
+    cursor.setOptions({ className: 'ring' })
+    expect(backdrop.className).toBe('ring__backdrop')
+
+    cursor.destroy()
+    expect(backdrop.isConnected).toBe(false)
+  })
+
+  /**
+   * A blending root is itself a boundary no backdrop blur inside it can read
+   * past, so while it blends the layer lives in a host just before the root —
+   * which then has to carry everything the layer's rules read off the root.
+   */
+  it('moves the backdrop layer out of a blending root and back', () => {
+    const cursor = createMagnetCursor({ ...BASE, blendMode: 'difference', size: 120 })
+    const el = cursor.element!
+    const backdrop = document.querySelector<HTMLElement>('.magnet-cursor__backdrop')!
+    const host = backdrop.parentElement!
+
+    expect(el.contains(backdrop)).toBe(false)
+    expect(host.classList.contains('magnet-cursor__backdrop-host')).toBe(true)
+    expect(host.nextElementSibling).toBe(el)
+    // What the layer's own rules read off its ancestor.
+    expect(host.style.getPropertyValue('--mc-size')).toBe('120px')
+    expect(host.style.getPropertyValue('--mc-blend')).toBe('difference')
+
+    const link = document.createElement('a')
+    document.body.appendChild(link)
+    seed(200, 200)
+    link.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }))
+    expect(host.classList.contains('magnet-cursor--item')).toBe(true)
+    expect(host.style.transform).toBe(el.style.transform)
+    expect(host.style.getPropertyValue('--mc-radius')).toBe(
+      el.style.getPropertyValue('--mc-radius'),
+    )
+
+    document.dispatchEvent(new MouseEvent('mouseleave'))
+    expect(host.classList.contains('magnet-cursor--hidden')).toBe(true)
+    expect(host.classList.contains('magnet-cursor--item')).toBe(false)
+
+    cursor.setOptions({ className: 'ring' })
+    expect(host.classList.contains('ring__backdrop-host')).toBe(true)
+    expect(host.classList.contains('magnet-cursor__backdrop-host')).toBe(false)
+    expect(host.classList.contains('ring--hidden')).toBe(true)
+
+    // Back to normal: one element again, the layer first inside the root.
+    cursor.setOptions({ blendMode: 'normal' })
+    expect(el.firstElementChild).toBe(backdrop)
+    expect(host.isConnected).toBe(false)
+
+    cursor.setOptions({ blendMode: 'multiply' })
+    const second = backdrop.parentElement!
+    expect(second).not.toBe(el)
+    cursor.destroy()
+    expect(second.isConnected).toBe(false)
+    expect(document.querySelector('.magnet-cursor__backdrop-host')).toBeNull()
+  })
+
+  it('follows a blend mode that only one theme sets', () => {
+    const cursor = createMagnetCursor({
+      ...BASE,
+      theme: 'light',
+      dark: { blendMode: 'difference' },
+    })
+    const el = cursor.element!
+    const backdrop = el.querySelector<HTMLElement>('.magnet-cursor__backdrop')!
+
+    expect(backdrop.parentElement).toBe(el)
+    cursor.setOptions({ theme: 'dark' })
+    expect(backdrop.parentElement?.classList.contains('magnet-cursor__backdrop-host')).toBe(true)
+    cursor.setOptions({ theme: 'light' })
+    expect(backdrop.parentElement).toBe(el)
 
     cursor.destroy()
   })
