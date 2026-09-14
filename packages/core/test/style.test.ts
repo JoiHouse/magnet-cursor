@@ -67,11 +67,58 @@ describe('style.css', () => {
     expect(rule).toContain('__drop::after')
   })
 
-  /** Only the head: one backdrop pass per drop, every frame, buys nothing. */
-  it('keeps the backdrop blur on the head alone', () => {
-    const rule = ruleWith('backdrop-filter')
-    expect(rule).toContain('__head::after')
-    expect(rule).not.toContain('__drop')
+  /**
+   * A backdrop blur reads no further back than its nearest filtered ancestor.
+   * The head is filtered in the item state and the body is whenever a trail is
+   * on, so the blur shipped on the head's disc and painted nothing in Chrome,
+   * Safari or Firefox. It has to live outside both — and one per drop, every
+   * frame, would buy nothing.
+   */
+  it('keeps the backdrop blur outside every filtered element', () => {
+    const rules = [...css.matchAll(/([^{}]*)\{[^}]*backdrop-filter[^}]*\}/g)].map((m) => m[1]!)
+    expect(rules.length).toBeGreaterThan(0)
+    for (const rule of rules) {
+      expect(rule).toContain('.magnet-cursor__backdrop::after')
+      expect(rule).not.toContain('__head')
+      expect(rule).not.toContain('__drop')
+      expect(rule).not.toContain('__body')
+    }
+  })
+
+  /**
+   * The blur layer stands in for the head's disc, so every rule that hides the
+   * disc from under a held item state has to take the layer with it — or the
+   * blur outlives the disc it was drawn for.
+   */
+  it('hides the backdrop layer wherever it hides the head', () => {
+    for (const state of [
+      '.magnet-cursor--hidden',
+      '[data-magnet-cursor-gravitating]',
+      '.magnet-cursor--merged:not(.magnet-cursor--morph-border)',
+    ]) {
+      const at = css.indexOf(`${state} .magnet-cursor__head::after`)
+      expect(at, `no rule for ${state}`).toBeGreaterThan(-1)
+      expect(css.slice(at, css.indexOf('{', at))).toContain(
+        `${state} .magnet-cursor__backdrop::after`,
+      )
+    }
+  })
+
+  /**
+   * While the cursor blends, the blur layer sits in a host outside the root, so
+   * the host has to take the root's place: fixed at the origin under the same
+   * z-index, and gone on touch devices the way the root is.
+   */
+  it('positions the backdrop host like the root, without a blend mode', () => {
+    const at = css.indexOf('.magnet-cursor__backdrop-host {')
+    expect(at, 'no backdrop host rule').toBeGreaterThan(-1)
+    const body = css.slice(at, css.indexOf('}', at))
+    expect(body).toContain('position: fixed')
+    expect(body).toContain('var(--mc-z-index')
+    expect(body).not.toContain('mix-blend-mode')
+
+    const touch = css.slice(css.indexOf('@media (hover: none)'))
+    expect(touch.slice(0, touch.indexOf('}'))).toContain('.magnet-cursor__backdrop-host')
   })
 
   /**

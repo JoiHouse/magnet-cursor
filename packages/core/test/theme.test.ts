@@ -236,6 +236,36 @@ describe('createThemeWatcher', () => {
     watcher.destroy()
   })
 
+  /**
+   * `MediaQueryList` only became an `EventTarget` in Safari 14; before that it
+   * has `addListener` alone. Calling the missing method threw out of the
+   * watcher — and so out of every cursor left on the default `theme: 'auto'`.
+   */
+  it('follows the OS preference through the legacy listener API', () => {
+    vi.stubGlobal('matchMedia', (query: string) => ({
+      get matches() {
+        return query.includes('prefers-color-scheme: dark') ? prefersDark : false
+      },
+      media: query,
+      addListener: (cb: Listener) => mediaListeners.push(cb),
+      removeListener: (cb: Listener) => {
+        mediaListeners = mediaListeners.filter((l) => l !== cb)
+      },
+    }))
+    const seen: ResolvedTheme[] = []
+
+    const watcher = createThemeWatcher({
+      mode: 'auto',
+      ...SELECTORS,
+      onChange: (t) => seen.push(t),
+    })
+    setPrefersDark(true)
+    expect(seen).toEqual(['dark'])
+
+    watcher.destroy()
+    expect(mediaListeners).toHaveLength(0)
+  })
+
   it('stays quiet when an unrelated attribute changes', async () => {
     const onChange = vi.fn()
     const watcher = createThemeWatcher({ mode: 'auto', ...SELECTORS, onChange })

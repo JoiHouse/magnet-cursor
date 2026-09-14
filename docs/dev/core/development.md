@@ -97,6 +97,9 @@ pnpm 11 的两个默认值要知道：安装脚本只对 `pnpm-workspace.yaml` �
 - 页面侧的声明式钩子用 `data-magnet-cursor-*` 属性（`-color`、`-item`、`-morph`、`-underline`、`-gravitating`）。新增钩子沿用这个前缀。
 - 拖尾滤镜内的元素不得申请独立合成层（`will-change`、`translate3d`），Safari 会按层分别应用滤镜导致水滴不融合。滤镜内用 2D `translate`。
 - `feColorMatrix` 的 alpha 乘数必须小于 128，WebKit 按有符号字节解释。
+- `backdrop-filter` 不得放在任何带 `filter` 的元素内部，也不得与 `filter` 放在同一元素上。它只能读到最近一个带 `filter` 的祖先为止（Backdrop Root），在 `__head`（item 态有 `blur()`）或 `__body`（拖尾有 goo 滤镜）里面一个像素都画不出来；Safari 在同一元素同时有 `filter` 时也不画。item 态的背景模糊因此放在 body 的同级 `__backdrop` 上，`writeFrame` 把 head 的形变同步给它。Chrome 152、Safari 26.5、Firefox 155 正式版实测。
+- 根节点的 `mix-blend-mode` 非 `normal` 时同样是 Backdrop Root。此时 `placeBackdrop` 把 `__backdrop` 移进根节点前面的同级 `__backdrop-host`（fixed，同 z-index，无混合），模糊本身不参与混合，光标仍整体混合；`normal` 时不建宿主。宿主要读的状态 class 与 `--mc-*` 都经 `toggleState` / `setVar` / `removeVar` 同时写到根节点和宿主，**根节点上的状态 class 与自定义属性不要再直接 `el.classList` / `el.style.setProperty`**，否则宿主漏同步。主题切换也可能改 `blendMode`，所以判断放在 `applyStyle` 里。
+- 旧 API 兜底只加在构建产物语法下限（ES2020：Chrome 80 / Firefox 74 / Safari 13.1）之内确实缺失的 API：不用 `inset` 简写（Chrome 87 / Safari 14.1，已在 Chromium 86.0.4240.0 实测：带 padding 的元素上 SVG 偏移 20px，改长属性后对齐）；`MediaQueryList` 在 Safari 14 之前没有 `addEventListener`，回退 `addListener`（依据 MDN 数据，本机拿不到 Safari 14 以前的引擎，未实测）。
 
 ### P3.5 风格
 
@@ -110,6 +113,7 @@ Prettier 负责格式（无分号、单引号、宽 100）。`tsconfig.base.json
 - [ ] 每帧逻辑走 `FrameTick`，且有停止条件
 - [ ] 新的可调值走 `--mc-*` 与 `data-magnet-cursor-*`
 - [ ] 与 WebKit 相关的改动在真机 Safari 看过一眼（无头 WebKit 测不出合成层问题）
+- [ ] 涉及 `backdrop-filter` 的结论来自正式版浏览器像素实测：Playwright 自带的 Firefox / WebKit 不渲染它，正式版 Firefox 的 WebDriver 截图也不包含它，要用系统截图（`screencapture`）；有头模式下系统鼠标会打断 hover 态，用无头或 WebDriver
 
 ## P4 测试
 
@@ -152,14 +156,16 @@ vi.stubGlobal('cancelAnimationFrame', () => {})
 
 ### P5.1 现象对照
 
-| 现象                           | 先看                                                                                  |
-| ------------------------------ | ------------------------------------------------------------------------------------- |
-| 光标完全不出现                 | `isPointerDevice()` / `prefersReducedMotion()` 是否返回了惰性实例；style.css 是否引入 |
-| 开拖尾后 Safari 上整个光标消失 | `cursor.ts` 的 `SOLID_ALPHA` 必须 `< 128`                                             |
-| Safari 上拖尾散成圆点          | 滤镜内元素被提升为合成层，检查 `will-change` / `translate3d`                          |
-| 指针静止 CPU 不降              | 某个效果的「还在动」判断没归零，看 render 循环的休眠条件                              |
-| 融合目标被删除后光标卡住       | 目标 `isConnected` 检查，在 render 循环每帧做                                         |
-| 构建后 `index.d.cts` 缺失      | 有人把 `clean: true` 加回了 tsup 配置，或有并行构建                                   |
+| 现象                           | 先看                                                                                                                                                           |
+| ------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 切走窗口或移出后光标留在原处   | 隐藏靠 `document` 的 `mouseleave`、顶层 `mouseout`（无 `relatedTarget`）、`window` 的 `blur` 三者任一；Safari 失焦只发 `blur`，Firefox 移出可能只发 `mouseout` |
+| 光标完全不出现                 | `isPointerDevice()` / `prefersReducedMotion()` 是否返回了惰性实例；style.css 是否引入                                                                          |
+| 开拖尾后 Safari 上整个光标消失 | `cursor.ts` 的 `SOLID_ALPHA` 必须 `< 128`                                                                                                                      |
+| Safari 上拖尾散成圆点          | 滤镜内元素被提升为合成层，检查 `will-change` / `translate3d`                                                                                                   |
+| item 态背景模糊看不出来        | `backdrop-filter` 是否落在带 `filter` 或混合模式的元素里面；宿主是否漏同步状态 class                                                                           |
+| 指针静止 CPU 不降              | 某个效果的「还在动」判断没归零，看 render 循环的休眠条件                                                                                                       |
+| 融合目标被删除后光标卡住       | 目标 `isConnected` 检查，在 render 循环每帧做                                                                                                                  |
+| 构建后 `index.d.cts` 缺失      | 有人把 `clean: true` 加回了 tsup 配置，或有并行构建                                                                                                            |
 
 ### P5.2 本地联调
 

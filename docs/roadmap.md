@@ -75,7 +75,7 @@ M0–M4 早于本文档，只记录范围与验收口径，不补写 guide；它
 - 仓库内无密钥、本机路径、私有目录引用；`site/`、`development/`、本地脚本均被忽略。
 - `pnpm lint`、`typecheck`、`build`、`test`、`check:exports` 在 CI 全绿；构建产物确定性（`.d.cts` 不再随机缺失）。
 - Release workflow 在 changesets 前跑完整检查，发布带 npm provenance。
-- 首发版本号为 0.1.0，与 README 的 CDN 链接一致。
+- README 的 CDN 示例统一使用 `@latest`；生产环境建议锁定具体版本。
 - GitHub：私有漏洞报告开启、Actions 可开 PR、`NPM_TOKEN` 就位、About 信息填写。
 - 演示站 cursor.joia.cn 首页、`/docs`、`/playground` 可访问且证书有效。
 - 三个包在 npm 上可安装，`@joihouse/*` scope 归属确认。

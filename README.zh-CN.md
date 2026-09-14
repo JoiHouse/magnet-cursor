@@ -200,10 +200,10 @@ pnpm add @joihouse/magnet-cursor-react
 ```html
 <link
   rel="stylesheet"
-  href="https://cdn.jsdelivr.net/npm/@joihouse/magnet-cursor-core@0.1.0/dist/style.css"
+  href="https://cdn.jsdelivr.net/npm/@joihouse/magnet-cursor-core@latest/dist/style.css"
 />
 
-<script src="https://cdn.jsdelivr.net/npm/@joihouse/magnet-cursor-core@0.1.0/dist/magnet-cursor.global.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@joihouse/magnet-cursor-core@latest/dist/magnet-cursor.global.js"></script>
 ```
 
 这个文件会挂载一个全局变量 `MagnetCursor`，所有 API 都在它上面。
@@ -280,12 +280,12 @@ export default function App() {
 ```html
 <link
   rel="stylesheet"
-  href="https://cdn.jsdelivr.net/npm/@joihouse/magnet-cursor-core@0.1.0/dist/style.css"
+  href="https://cdn.jsdelivr.net/npm/@joihouse/magnet-cursor-core@latest/dist/style.css"
 />
 
 <button>Hover me</button>
 
-<script src="https://cdn.jsdelivr.net/npm/@joihouse/magnet-cursor-core@0.1.0/dist/magnet-cursor.global.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@joihouse/magnet-cursor-core@latest/dist/magnet-cursor.global.js"></script>
 
 <script>
   const cursor = MagnetCursor.createMagnetCursor({
@@ -530,14 +530,14 @@ aria-hidden="true"
   <head>
     <link
       rel="stylesheet"
-      href="https://cdn.jsdelivr.net/npm/@joihouse/magnet-cursor-core@0.1.0/dist/style.css"
+      href="https://cdn.jsdelivr.net/npm/@joihouse/magnet-cursor-core@latest/dist/style.css"
     />
   </head>
 
   <body>
     <button data-magnet-cursor-morph="fill">Hover me</button>
 
-    <script src="https://cdn.jsdelivr.net/npm/@joihouse/magnet-cursor-core@0.1.0/dist/magnet-cursor.global.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@joihouse/magnet-cursor-core@latest/dist/magnet-cursor.global.js"></script>
 
     <script>
       MagnetCursor.createMagnetCursor({
@@ -555,9 +555,29 @@ aria-hidden="true"
 
 > [!IMPORTANT]
 >
-> 生产环境建议锁定具体版本。
+> 以上示例使用 `@latest`，会自动跟随当前最新版本。
 >
-> 不要依赖不带版本号的 CDN 地址，否则新版本发布后可能会影响你的线上页面。
+> 生产环境建议锁定具体版本，避免新版本发布后意外影响线上页面。
+
+---
+
+# 更新日志
+
+各个包的详细变更请查看 [core](./packages/core/CHANGELOG.md)、[React](./packages/react/CHANGELOG.md) 和 [Vue](./packages/vue/CHANGELOG.md) 的更新日志。
+
+## 未发布
+
+- 修复光标在滤镜、拖尾或非默认混合模式下，item 状态背景模糊不生效的问题。
+- 提升对旧版 Safari 以及不支持 `inset` 简写或新版 `MediaQueryList` 监听器的浏览器兼容性。
+- 窗口失去焦点时隐藏自定义光标，并在下一次指针移动时恢复。
+
+## 0.1.1
+
+- 改用 npm Trusted Publishing（OIDC）发布，无运行时逻辑变更。
+
+## 0.1.0
+
+- 首次公开发布，包含 core 光标与磁吸引擎，以及 Vue 3 和 React 绑定。
 
 ---
 

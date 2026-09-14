@@ -17,6 +17,9 @@
 
 const SVG_NS = 'http://www.w3.org/2000/svg'
 
+const createSvgElement = <T extends SVGElement>(tag: string): T =>
+  document.createElementNS(SVG_NS, tag) as T
+
 /** Blur radii beyond which a Gaussian contributes nothing worth rendering. */
 const BLUR_SPILL = 3
 /** Slack on the filter region so rounding never crops the outermost pixel. */
@@ -70,22 +73,74 @@ export function createLiquidSurface(element: HTMLElement, init: LiquidSurfaceIni
   svg.setAttribute('aria-hidden', 'true')
   svg.setAttribute('width', '100%')
   svg.setAttribute('height', '100%')
-  svg.style.cssText = 'position:absolute;inset:0;overflow:visible;pointer-events:none;z-index:-1'
+  // Longhands, not `inset`: that shorthand is Chrome 87 / Safari 14.1, and an
+  // engine that drops it leaves the SVG at its static position instead of over
+  // the padding box it has to measure.
+  svg.style.cssText =
+    'position:absolute;top:0;right:0;bottom:0;left:0;overflow:visible;pointer-events:none;z-index:-1'
 
-  svg.innerHTML = `<defs>
-<filter id="${gooId}" filterUnits="userSpaceOnUse">
-<feGaussianBlur in="SourceGraphic" stdDeviation="${tension}" result="blur"/>
-<feColorMatrix in="blur" mode="matrix" values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 19 -9"/>
-</filter>
-<mask id="${maskId}">
-<rect x="0" y="0" width="100%" height="100%" fill="#fff"/>
-<g class="mc-liquid-follow"><g class="mc-liquid-stretch"><g class="mc-liquid-bite">
-<circle cx="50%" cy="50%" r="${size / 2}" fill="#000"/>
-</g></g></g>
-</mask>
-</defs>
-<g filter="url(#${gooId})"><rect class="mc-liquid-reveal" x="0" y="0" width="100%" height="100%" rx="${init.rounded}" ry="${init.rounded}" fill="${init.liquidColor}"/></g>
-<g filter="url(#${gooId})"><rect class="mc-liquid-surface" x="0" y="0" width="100%" height="100%" rx="${init.rounded}" ry="${init.rounded}" fill="${init.surface}" mask="url(#${maskId})"/></g>`
+  const defs = createSvgElement<SVGDefsElement>('defs')
+  const filter = createSvgElement<SVGFilterElement>('filter')
+  filter.setAttribute('id', gooId)
+  filter.setAttribute('filterUnits', 'userSpaceOnUse')
+  const blur = createSvgElement<SVGFEGaussianBlurElement>('feGaussianBlur')
+  blur.setAttribute('in', 'SourceGraphic')
+  blur.setAttribute('stdDeviation', String(tension))
+  blur.setAttribute('result', 'blur')
+  const matrix = createSvgElement<SVGFEColorMatrixElement>('feColorMatrix')
+  matrix.setAttribute('in', 'blur')
+  matrix.setAttribute('mode', 'matrix')
+  matrix.setAttribute('values', '1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 19 -9')
+  filter.append(blur, matrix)
+  defs.append(filter)
+
+  const mask = createSvgElement<SVGMaskElement>('mask')
+  mask.setAttribute('id', maskId)
+  const maskRect = createSvgElement<SVGRectElement>('rect')
+  maskRect.setAttribute('x', '0')
+  maskRect.setAttribute('y', '0')
+  maskRect.setAttribute('width', '100%')
+  maskRect.setAttribute('height', '100%')
+  maskRect.setAttribute('fill', '#fff')
+  const follow = createSvgElement<SVGGElement>('g')
+  follow.setAttribute('class', 'mc-liquid-follow')
+  const stretch = createSvgElement<SVGGElement>('g')
+  stretch.setAttribute('class', 'mc-liquid-stretch')
+  const bite = createSvgElement<SVGGElement>('g')
+  bite.setAttribute('class', 'mc-liquid-bite')
+  const circle = createSvgElement<SVGCircleElement>('circle')
+  circle.setAttribute('cx', '50%')
+  circle.setAttribute('cy', '50%')
+  circle.setAttribute('r', String(size / 2))
+  circle.setAttribute('fill', '#000')
+  bite.append(circle)
+  stretch.append(bite)
+  follow.append(stretch)
+  mask.append(maskRect, follow)
+  defs.append(mask)
+
+  const createPaintGroup = (className: string, paint: string): SVGGElement => {
+    const group = createSvgElement<SVGGElement>('g')
+    group.setAttribute('filter', `url(#${gooId})`)
+    const rect = createSvgElement<SVGRectElement>('rect')
+    rect.setAttribute('class', className)
+    rect.setAttribute('x', '0')
+    rect.setAttribute('y', '0')
+    rect.setAttribute('width', '100%')
+    rect.setAttribute('height', '100%')
+    rect.setAttribute('rx', String(init.rounded))
+    rect.setAttribute('ry', String(init.rounded))
+    rect.setAttribute('fill', paint)
+    if (className === 'mc-liquid-surface') rect.setAttribute('mask', `url(#${maskId})`)
+    group.append(rect)
+    return group
+  }
+
+  svg.append(
+    defs,
+    createPaintGroup('mc-liquid-reveal', init.liquidColor),
+    createPaintGroup('mc-liquid-surface', init.surface),
+  )
 
   const pick = <T extends SVGElement>(selector: string) => svg.querySelector(selector) as T
   const followEl = pick<SVGGElement>('.mc-liquid-follow')

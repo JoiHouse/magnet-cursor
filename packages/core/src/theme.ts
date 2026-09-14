@@ -223,7 +223,11 @@ export const createThemeWatcher = (options: ThemeWatcherOptions): ThemeWatcher =
 
     if (typeof window.matchMedia === 'function') {
       media = window.matchMedia('(prefers-color-scheme: dark)')
-      media.addEventListener('change', reevaluate)
+      // `MediaQueryList` only became an `EventTarget` in Safari 14. Before that
+      // it has `addListener` alone, and calling the missing method threw out of
+      // `createMagnetCursor` on every page left on the default `theme: 'auto'`.
+      if (typeof media.addEventListener === 'function') media.addEventListener('change', reevaluate)
+      else media.addListener(reevaluate)
     }
 
     if (typeof MutationObserver === 'function') {
@@ -245,7 +249,11 @@ export const createThemeWatcher = (options: ThemeWatcherOptions): ThemeWatcher =
   }
 
   const disconnect = () => {
-    media?.removeEventListener('change', reevaluate)
+    if (media) {
+      if (typeof media.removeEventListener === 'function') {
+        media.removeEventListener('change', reevaluate)
+      } else media.removeListener(reevaluate)
+    }
     media = null
     observer?.disconnect()
     observer = null

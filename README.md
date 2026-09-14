@@ -200,10 +200,10 @@ Plain JavaScript needs no install, no Node.js and no build tooling. One js file 
 ```html
 <link
   rel="stylesheet"
-  href="https://cdn.jsdelivr.net/npm/@joihouse/magnet-cursor-core@0.1.0/dist/style.css"
+  href="https://cdn.jsdelivr.net/npm/@joihouse/magnet-cursor-core@latest/dist/style.css"
 />
 
-<script src="https://cdn.jsdelivr.net/npm/@joihouse/magnet-cursor-core@0.1.0/dist/magnet-cursor.global.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@joihouse/magnet-cursor-core@latest/dist/magnet-cursor.global.js"></script>
 ```
 
 That file defines a single global, `MagnetCursor`, and every API hangs off it.
@@ -280,12 +280,12 @@ Once the js file is in, every API lives on the global `MagnetCursor`:
 ```html
 <link
   rel="stylesheet"
-  href="https://cdn.jsdelivr.net/npm/@joihouse/magnet-cursor-core@0.1.0/dist/style.css"
+  href="https://cdn.jsdelivr.net/npm/@joihouse/magnet-cursor-core@latest/dist/style.css"
 />
 
 <button>Hover me</button>
 
-<script src="https://cdn.jsdelivr.net/npm/@joihouse/magnet-cursor-core@0.1.0/dist/magnet-cursor.global.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@joihouse/magnet-cursor-core@latest/dist/magnet-cursor.global.js"></script>
 
 <script>
   const cursor = MagnetCursor.createMagnetCursor({
@@ -532,14 +532,14 @@ A complete, working page:
   <head>
     <link
       rel="stylesheet"
-      href="https://cdn.jsdelivr.net/npm/@joihouse/magnet-cursor-core@0.1.0/dist/style.css"
+      href="https://cdn.jsdelivr.net/npm/@joihouse/magnet-cursor-core@latest/dist/style.css"
     />
   </head>
 
   <body>
     <button data-magnet-cursor-morph="fill">Hover me</button>
 
-    <script src="https://cdn.jsdelivr.net/npm/@joihouse/magnet-cursor-core@0.1.0/dist/magnet-cursor.global.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@joihouse/magnet-cursor-core@latest/dist/magnet-cursor.global.js"></script>
 
     <script>
       MagnetCursor.createMagnetCursor({
@@ -558,9 +558,29 @@ of any kind.
 
 > [!IMPORTANT]
 >
-> Pin an exact version in production.
+> These examples use `@latest` so they always follow the current release.
 >
-> Do not rely on a CDN URL without a version — a new release could otherwise change your live page.
+> For production, pin an exact version instead so a new release cannot change your live page unexpectedly.
+
+---
+
+# Changelog
+
+For package-specific details, see the [core](./packages/core/CHANGELOG.md), [React](./packages/react/CHANGELOG.md), and [Vue](./packages/vue/CHANGELOG.md) changelogs.
+
+## Unreleased
+
+- Fixed the item-state backdrop blur when the cursor uses filters, trails, or a non-normal blend mode.
+- Improved compatibility with older Safari and browsers that do not support the `inset` shorthand or modern `MediaQueryList` listeners.
+- Hid the custom cursor when the window loses focus and restored it on the next pointer move.
+
+## 0.1.1
+
+- Published through npm trusted publishing (OIDC), with no runtime changes.
+
+## 0.1.0
+
+- Initial public release with the core cursor and magnet engine plus Vue 3 and React bindings.
 
 ---
 

@@ -129,11 +129,56 @@
 }
 
 /*
- * Only the head takes the backdrop blur. One per drop would be another
- * backdrop pass per frame for a shape the goo filter is about to flatten
- * anyway, and the head is what sits over the element being hovered.
+ * The backdrop blur, on its own layer beside the body.
+ *
+ * It used to sit on the head's disc, where it never painted: a backdrop blur
+ * reads no further back than its nearest filtered ancestor, and the head is
+ * filtered in this very state, the body whenever a trail is on. Measured in
+ * Chrome, Safari and Firefox. A disc with the same box, radius, scale and
+ * opacity as the head's, and no paint of its own, so it blurs exactly where
+ * the disc did and adds no colour. One per drop would be another backdrop pass
+ * per frame for a shape the goo filter is about to flatten anyway, and the head
+ * is what sits over the element being hovered.
  */
-.magnet-cursor--item:not(.magnet-cursor--merging) .magnet-cursor__head::after {
+.magnet-cursor__backdrop {
+  position: absolute;
+  top: 0;
+  left: 0;
+}
+
+/*
+ * The layer's home while the cursor blends. A root blend mode is a boundary a
+ * backdrop blur cannot read past, so the engine moves the layer out to this
+ * sibling, positioned like the root and carrying its state classes, but with
+ * no blend mode of its own.
+ */
+.magnet-cursor__backdrop-host {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: var(--mc-z-index, 9999);
+  pointer-events: none;
+  will-change: transform;
+}
+
+.magnet-cursor__backdrop::after {
+  content: '';
+  display: block;
+  position: absolute;
+  top: calc(var(--mc-size, 10rem) / -2);
+  left: calc(var(--mc-size, 10rem) / -2);
+  width: var(--mc-size, 10rem);
+  height: var(--mc-size, 10rem);
+  border-radius: var(--mc-radius, 50%);
+  transform: scale(var(--mc-scale, 0.07));
+  transition:
+    transform 0.3s ease,
+    opacity 0.2s ease;
+}
+
+.magnet-cursor--item:not(.magnet-cursor--merging) .magnet-cursor__backdrop::after {
+  opacity: 0.31;
+  transform: scale(var(--mc-item-scale, 0.2));
   /* Prefixed first: Safari only took the unprefixed property in 18. Without it
    * the head loses its backdrop blur on Safari 17 and below — and since the goo
    * filter flattens head and drops into one silhouette, that blur is the only
@@ -200,7 +245,8 @@
 
 /* Fill merges are already hidden continuously by the progress rule below. */
 .magnet-cursor--merged:not(.magnet-cursor--morph-border) .magnet-cursor__head::after,
-.magnet-cursor--merged:not(.magnet-cursor--morph-border) .magnet-cursor__drop::after {
+.magnet-cursor--merged:not(.magnet-cursor--morph-border) .magnet-cursor__drop::after,
+.magnet-cursor--merged:not(.magnet-cursor--morph-border) .magnet-cursor__backdrop::after {
   opacity: calc(1 - var(--mc-fill-amount, 1));
   transform: scale(var(--mc-scale, 0.07));
 }
@@ -309,7 +355,8 @@
  * the pointer for itself.
  */
 [data-magnet-cursor-gravitating] .magnet-cursor__head::after,
-[data-magnet-cursor-gravitating] .magnet-cursor__drop::after {
+[data-magnet-cursor-gravitating] .magnet-cursor__drop::after,
+[data-magnet-cursor-gravitating] .magnet-cursor__backdrop::after {
   opacity: 0 !important;
   transform: scale(0) !important;
 }
@@ -335,7 +382,8 @@
  * guarantee that no hover state can outrank an absent pointer.
  */
 .magnet-cursor--hidden .magnet-cursor__head::after,
-.magnet-cursor--hidden .magnet-cursor__drop::after {
+.magnet-cursor--hidden .magnet-cursor__drop::after,
+.magnet-cursor--hidden .magnet-cursor__backdrop::after {
   opacity: 0 !important;
   transform: scale(0) !important;
 }
@@ -348,7 +396,8 @@
 
 /* Safety nets — the engine already bails out in both cases. */
 @media (hover: none) and (pointer: coarse) {
-  .magnet-cursor {
+  .magnet-cursor,
+  .magnet-cursor__backdrop-host {
     display: none !important;
   }
 }
@@ -357,7 +406,8 @@
   .magnet-cursor,
   .magnet-cursor__head,
   .magnet-cursor__head::after,
-  .magnet-cursor__drop::after {
+  .magnet-cursor__drop::after,
+  .magnet-cursor__backdrop::after {
     transition: none !important;
   }
 }

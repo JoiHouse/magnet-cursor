@@ -34,7 +34,7 @@ const runUntilIdle = (limit = 1000) => {
 /**
  * jsdom has no layout: a 200x100 surface positioned at (100, 100).
  *
- * The SVG reports the same box, because it is `inset: 0` inside the element —
+ * The SVG reports the same box, because it is pinned to all four sides of the element —
  * that is the box the filter region is measured from.
  */
 let surfaceBox = { width: 200, height: 100 }
@@ -144,6 +144,38 @@ describe('createGravitationalLiquid', () => {
     // Only the colour was ever taken over, so only the colour is handed back.
     expect(el.style.backgroundColor).toBe('rgb(17, 17, 17)')
     expect(el.style.isolation).toBe('')
+  })
+
+  it('treats paint options as attribute values instead of SVG markup', () => {
+    const surface = '"/><script>window.__injected = true</script>'
+    const liquidColor = "'><script>window.__injected = true</script>"
+    const el = mountSurface()
+    const liquid = createGravitationalLiquid(el, { ...BASE, surface, liquidColor })
+    const svg = el.querySelector('svg')!
+
+    expect(svg.querySelector('script')).toBeNull()
+    expect(svg.querySelector('.mc-liquid-surface')!.getAttribute('fill')).toBe(surface)
+    expect(svg.querySelector('.mc-liquid-reveal')!.getAttribute('fill')).toBe(liquidColor)
+
+    liquid.destroy()
+  })
+
+  /**
+   * The filter region is measured from the SVG's own box, so the SVG has to
+   * cover the padding box. `inset` is Chrome 87 / Safari 14.1; an engine that
+   * drops the shorthand leaves the SVG at its static position instead.
+   */
+  it('pins the surface with longhand offsets rather than the inset shorthand', () => {
+    const el = mountSurface()
+    const liquid = createGravitationalLiquid(el, BASE)
+    const svg = el.querySelector('svg')!
+
+    expect(svg.getAttribute('style')).not.toContain('inset')
+    for (const side of ['top', 'right', 'bottom', 'left'] as const) {
+      expect(svg.style[side]).toBe('0px')
+    }
+
+    liquid.destroy()
   })
 
   it('starts closed, so the liquid colour cannot show before a hover', () => {
