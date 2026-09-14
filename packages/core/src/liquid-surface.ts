@@ -89,7 +89,7 @@ export function createLiquidSurface(element: HTMLElement, init: LiquidSurfaceIni
   blur.setAttribute('result', 'blur')
   const matrix = createSvgElement<SVGFEColorMatrixElement>('feColorMatrix')
   matrix.setAttribute('in', 'blur')
-  matrix.setAttribute('mode', 'matrix')
+  matrix.setAttribute('type', 'matrix')
   matrix.setAttribute('values', '1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 19 -9')
   filter.append(blur, matrix)
   defs.append(filter)

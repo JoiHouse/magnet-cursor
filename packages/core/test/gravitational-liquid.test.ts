@@ -160,6 +160,17 @@ describe('createGravitationalLiquid', () => {
     liquid.destroy()
   })
 
+  it('uses the feColorMatrix type attribute for the goo matrix', () => {
+    const el = mountSurface()
+    const liquid = createGravitationalLiquid(el, BASE)
+    const matrix = el.querySelector('filter feColorMatrix')!
+
+    expect(matrix.getAttribute('type')).toBe('matrix')
+    expect(matrix.getAttribute('mode')).toBeNull()
+
+    liquid.destroy()
+  })
+
   /**
    * The filter region is measured from the SVG's own box, so the SVG has to
    * cover the padding box. `inset` is Chrome 87 / Safari 14.1; an engine that

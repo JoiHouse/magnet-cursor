@@ -104,6 +104,20 @@ describe('style.css', () => {
     }
   })
 
+  it('hides the backdrop layer for border merges too', () => {
+    const at = css.indexOf('.magnet-cursor--merged .magnet-cursor__head::after')
+    expect(at, 'no merged head rule').toBeGreaterThan(-1)
+    const selector = css.slice(at, css.indexOf('{', at))
+    expect(selector).toContain('.magnet-cursor--merged .magnet-cursor__backdrop::after')
+  })
+
+  it('keeps the pinned backdrop the same size as the pinned head', () => {
+    const at = css.indexOf('.magnet-cursor--pinned .magnet-cursor__head::after')
+    expect(at, 'no pinned head rule').toBeGreaterThan(-1)
+    const selector = css.slice(at, css.indexOf('{', at))
+    expect(selector).toContain('.magnet-cursor--pinned .magnet-cursor__backdrop::after')
+  })
+
   /**
    * While the cursor blends, the blur layer sits in a host outside the root, so
    * the host has to take the root's place: fixed at the origin under the same

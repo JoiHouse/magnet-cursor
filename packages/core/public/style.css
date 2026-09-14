@@ -180,15 +180,16 @@
   opacity: 0.31;
   transform: scale(var(--mc-item-scale, 0.2));
   /* Prefixed first: Safari only took the unprefixed property in 18. Without it
-   * the head loses its backdrop blur on Safari 17 and below — and since the goo
-   * filter flattens head and drops into one silhouette, that blur is the only
-   * thing left saying the head is sitting on the element. */
+   * this standalone backdrop layer loses its blur on Safari 17 and below. The
+   * goo filter still flattens head and drops into one silhouette, so this layer
+   * is the only part that provides the backdrop-blur effect. */
   -webkit-backdrop-filter: blur(var(--mc-blur, 6px));
   backdrop-filter: blur(var(--mc-blur, 6px));
 }
 
 /* Pinned state, for elements that should hold the cursor at a fixed size. */
-.magnet-cursor--pinned .magnet-cursor__head::after {
+.magnet-cursor--pinned .magnet-cursor__head::after,
+.magnet-cursor--pinned .magnet-cursor__backdrop::after {
   transform: scale(var(--mc-pin-scale, 0.26));
 }
 
@@ -238,7 +239,8 @@
  * painted inside the ring.
  */
 .magnet-cursor--merged .magnet-cursor__head::after,
-.magnet-cursor--merged .magnet-cursor__drop::after {
+.magnet-cursor--merged .magnet-cursor__drop::after,
+.magnet-cursor--merged .magnet-cursor__backdrop::after {
   opacity: 0;
   transform: scale(0.2);
 }
